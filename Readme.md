@@ -215,3 +215,37 @@ The agent must not claim that tests passed, integrations work, or security contr
 - `ai/ai-features.md`
 - `design/design-system.md`
 - `design/ux-flows.md`
+
+## 15. Workspace Setup and Commands
+
+The root repository provides unified commands delegating to the backend and frontend:
+
+### Installation
+```bash
+npm run install:all
+```
+
+### Local Development
+Run backend and frontend in separate terminals:
+```bash
+# Terminal 1: Backend Express Server (http://localhost:5001)
+npm run dev:backend
+
+# Terminal 2: Frontend Vite React App (http://localhost:5173)
+npm run dev:frontend
+```
+
+### Verification and Testing
+Execute full-workspace test suite (backend unit tests + frontend build check):
+```bash
+npm test
+```
+
+Or execute individually:
+```bash
+npm run test:backend   # Runs node --test in backend
+npm run test:frontend  # Runs tsc -b && vite build in frontend
+```
+
+### Stopping Services
+Press `Ctrl+C` in the active terminal to initiate graceful shutdown.
