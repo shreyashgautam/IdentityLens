@@ -138,3 +138,54 @@ This document logs all key architectural, technical, library, and design decisio
   - *Agentic Remediation (AI auto-revokes accounts)*: High risk of denial of service or unauthorized revocation based on model error.
   - *Text-to-SQL (AI generates queries to answer user questions)*: Susceptible to SQL injection, bypassing ACL/RBAC, and data exfiltration.
 - **Accepted Trade-Off**: AI does not automatically fix security vulnerabilities; human approval is required for all remedial actions.
+
+---
+
+### Decision 9: Backend Port Selection (Port 5001 vs. Default Port 5000)
+
+- **Decision**: Configure default backend listening port to `5001` with fallback via `PORT` environment variable.
+- **Why It Is Needed**:
+  - On macOS Monterey and later, Apple's AirPlay Receiver / ControlCenter service binds to port `5000` (`commplex-main`), causing `listen EADDRINUSE: address already in use :::5000` crashes on startup.
+- **Alternatives Considered**:
+  - *Disabling AirPlay Receiver in macOS System Settings*: Disrupts user system configuration outside the workspace boundary.
+  - *Using high arbitrary port (e.g. 8080 or 3001)*: Port 5001 is the standard convention when 5000 is reserved.
+- **Accepted Trade-Off**: Frontend API calls and CORS origins must explicitly reference `http://localhost:5001`.
+
+---
+
+### Decision 10: Vite 6 LTS over Experimental Vite 8 for Frontend
+
+- **Decision**: Pin Vite to `vite@^6.2.0` and `@vitejs/plugin-react@^4.3.4`.
+- **Why It Is Needed**:
+  - The local development environment uses Node `v20.17.0`.
+  - Bleeding-edge `create-vite` scaffolds experimental Vite 8 using `rolldown`, which demands Node `>=20.19.0` and triggers optional native binding missing errors (`@rolldown/binding-darwin-arm64`).
+  - Vite 6 LTS provides stable, battle-tested HMR and fast 500ms production builds across all Node 20 LTS releases.
+- **Alternatives Considered**:
+  - *Upgrading Node globally*: Requires administrative privileges and may break other local tools.
+  - *Webpack*: Far slower local development cycles and excessive configuration overhead.
+- **Accepted Trade-Off**: Does not yet use the experimental Rolldown rust-bundler; uses standard Rollup under the hood.
+
+---
+
+### Decision 11: Decoupled `server.js` and `app.js`
+
+- **Decision**: Separate Express configuration (`src/app.js`) from HTTP server binding and lifecycle management (`src/server.js`).
+- **Why It Is Needed**:
+  - Enables fast, port-free unit and integration testing via `supertest` or native fetch against `app` without binding network ports.
+  - Isolates process signal handling (`SIGTERM`, `SIGINT` graceful shutdown) into `server.js`.
+- **Alternatives Considered**:
+  - *Single `server.js` file*: Couples Express middleware and route mounting to active port binding.
+- **Accepted Trade-Off**: Requires two files instead of one at the backend root.
+
+---
+
+### Decision 12: Health Check Route (`GET /health`)
+
+- **Decision**: Expose `GET /health` at root level (outside `/api/v1` prefix), returning `{ status: "ok", timestamp, service, version }`.
+- **Why It Is Needed**:
+  - Complies strictly with `docs/api-contract.md` section 14.8 and `docs/architecture.md`.
+  - Enables load balancers, container orchestrators, and the frontend to verify liveness without authentication overhead.
+- **Alternatives Considered**:
+  - *Versioned health endpoint (`/api/v1/health`)*: Rejected because infrastructure health probes generally check unversioned service availability.
+- **Accepted Trade-Off**: Unauthenticated public endpoint; returns only minimal service metadata without sensitive database credentials.
+

@@ -1,0 +1,50 @@
+:root {
+  --bg-primary: #F7F8FA;
+  --surface: #FFFFFF;
+  --surface-hover: #F1F5F9;
+  --text-primary: #172033;
+  --text-secondary: #64748B;
+  --border: #E2E8F0;
+  --primary: #3157D5;
+  --primary-hover: #2645B0;
+  --success: #15803D;
+  --success-bg: rgba(21, 128, 61, 0.1);
+  --error: #B91C1C;
+  --error-bg: rgba(185, 28, 28, 0.1);
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+[data-theme='dark'] {
+  --bg-primary: #0B1020;
+  --surface: #121A2B;
+  --surface-hover: #182338;
+  --text-primary: #F1F5F9;
+  --text-secondary: #A5B4C7;
+  --border: #29364A;
+  --primary: #8098FF;
+  --primary-hover: #9bb0ff;
+  --success: #22C55E;
+  --success-bg: rgba(34, 197, 94, 0.15);
+  --error: #EF4444;
+  --error-bg: rgba(239, 68, 68, 0.15);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}

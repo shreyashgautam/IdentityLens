@@ -290,3 +290,50 @@ How the user requests an AI-assisted explanation without compromising security:
    │  ├─ Shows clear reasoning linked to exact evidence fields
    │  └─ AI has ZERO write access to the database and cannot alter finding severity or account status!
 ```
+
+---
+
+## 9. Foundational Health Check & Connectivity Flow (Milestones 1 & 2)
+
+Step-by-step trace of the initial foundation flow:
+
+```
+1. Frontend Initialization:
+   - index.html loads /src/main.tsx.
+   - main.tsx renders <App /> into #root.
+   - App.tsx loads stored theme preference from localStorage ('ivip_theme').
+   - Sets attribute: document.documentElement.setAttribute('data-theme', theme).
+
+2. Health Check Request Trigger:
+   - App.tsx useEffect() executes checkHealth() on mount.
+   - Sets loading state: setLoading(true), setError(null).
+   - DOM renders: <div className="status-badge checking">Checking connection...</div>.
+   - Client sends HTTP GET request: fetch('http://localhost:5001/health').
+
+3. Backend Express Request Processing:
+   - Server listener on port 5001 receives the TCP connection.
+   - Request passes through app.use() middleware in backend/src/app.js:
+       a. requestId.middleware: Generates UUID (e.g., '6f3a77f5-...') and sets res.setHeader('X-Request-ID', requestId).
+       b. cors.middleware: Validates Origin 'http://localhost:5173', responds with Access-Control-Allow-Origin: http://localhost:5173 and Access-Control-Allow-Credentials: true.
+       c. express.json({ limit: '100kb' }): No body to parse.
+   - Matches route handler: app.get('/health', (req, res) => ...).
+   - Handler serializes JSON:
+       res.status(200).json({
+         status: 'ok',
+         timestamp: new Date().toISOString(),
+         service: 'ivip-mini-backend',
+         version: '0.1.0'
+       });
+
+4. Frontend Response Handling:
+   - fetch() resolves with response.ok == true (HTTP 200).
+   - data is parsed: await response.json().
+   - State updates: setHealth(data), setLoading(false).
+   - Component re-renders:
+       a. Displays online badge: <div className="status-badge online">Backend Online (ivip-mini-backend v0.1.0)</div>.
+       b. Displays formatted JSON payload in <pre className="health-details">.
+   - If server is stopped or port is blocked:
+       a. catch block triggers: setError(err.message), setHealth(null), setLoading(false).
+       b. Renders offline badge and user-friendly "Retry Connection" button.
+```
+
