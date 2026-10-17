@@ -1,0 +1,75 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment variables and secrets (VERY important)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets/
+config/secrets.*
+
+# Build output
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test and coverage
+coverage/
+.nyc_output/
+junit.xml
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Uploads and local data
+uploads/
+tmp/
+temp/
+*.sqlite
+*.sqlite3
+*.db
+
+# Docker (local overrides)
+docker-compose.override.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+._*
+
+# Editor and IDE files
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+
+# Package manager extras
+.npm
+.yarn/cache
+.yarn/unplugged
+.eslintcache
