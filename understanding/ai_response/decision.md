@@ -189,3 +189,34 @@ This document logs all key architectural, technical, library, and design decisio
   - *Versioned health endpoint (`/api/v1/health`)*: Rejected because infrastructure health probes generally check unversioned service availability.
 - **Accepted Trade-Off**: Unauthenticated public endpoint; returns only minimal service metadata without sensitive database credentials.
 
+---
+
+### Decision 13: Root Workspace Script Delegation via `npm --prefix`
+
+- **Decision**: Orchestrate backend and frontend commands from the root repository using a lightweight root `package.json` with `npm --prefix backend` and `npm --prefix frontend` delegations.
+- **Why It Is Needed**:
+  - Provides standard unified commands (`npm run dev:backend`, `npm run dev:frontend`, `npm test`) for developers and coding agents without navigating into subfolders.
+  - Avoids introducing heavy monorepo build tools (Turborepo, Nx, Lerna) that add unnecessary configuration files, caching daemons, and dependency complexities.
+- **Alternatives Considered**:
+  - *Turborepo / Nx*: Overkill for a two-service modular monolith; adds cache lockfile management overhead.
+  - *No root package.json*: Requires developers and agents to constantly `cd backend && npm ...` which increases friction and error rates.
+- **Accepted Trade-Off**: Root package does not hoist shared dependencies; backend and frontend maintain their own independent `node_modules` and `package-lock.json` files.
+
+---
+
+### Decision 14: Backend Modular Layer Segmentation
+
+- **Decision**: Strictly segment the backend into dedicated directories (`src/middlewares/`, `src/helpers/`, `src/routes/`, and `src/modules/<feature>/`) instead of inlining logic into `app.js`.
+- **Why It Is Needed**:
+  - Implements the exact specifications in `docs/api-contract.md` Section 15 and `docs/architecture.md` Section 7.
+  - Ensures clean separation of concerns:
+    - `src/helpers/response.helper.js` guarantees that every endpoint adheres to the standard response envelope (`{ data, pagination, meta }`) and error envelope (`{ error: { code, message, details, request_id } }`).
+    - `src/middlewares/` encapsulates cross-cutting concerns (Request-ID, CORS, Zod validation, 404, centralized error handling).
+    - `src/routes/index.js` acts as the central router, mounting public liveness (`/health`) and versioned resources (`/api/v1`).
+    - `src/modules/health/` establishes the standard feature module pattern: `<feature>.routes.js` $\rightarrow$ `<feature>.controller.js` $\rightarrow$ `<feature>.service.js`.
+- **Alternatives Considered**:
+  - *Inlining middlewares & handlers in `app.js`*: Faster for initial prototyping, but leads to monolithic file bloat, poor testability, and violates modular monolith principles.
+- **Accepted Trade-Off**: More files created upfront, but provides crystal-clear boundaries and zero tech debt as subsequent feature modules are introduced.
+
+
+

@@ -337,3 +337,91 @@ Step-by-step trace of the initial foundation flow:
        b. Renders offline badge and user-friendly "Retry Connection" button.
 ```
 
+---
+
+## 10. Root Workspace Command Delegation Flow (Milestone 0.2)
+
+How root commands orchestrate decoupled backend and frontend packages:
+
+```
+1. Developer / Agent runs command at root:
+   │
+   ├─> npm run dev:backend
+   │     └─ Delegates to: npm --prefix backend run dev
+   │     └─ Executes: node --watch src/server.js (port 5001)
+   │
+   ├─> npm run dev:frontend
+   │     └─ Delegates to: npm --prefix frontend run dev
+   │     └─ Executes: vite (port 5173 with HMR)
+   │
+   ├─> npm test
+   │     ├─ Step 1: npm run test:backend
+   │     │    └─ Delegates to: npm --prefix backend test
+   │     │    └─ Executes: node --test (runs backend/test/*.test.js)
+   │     │    └─ Verifies: GET /health returns 200 OK & expected JSON schema
+   │     │
+   │     └─ Step 2: npm run test:frontend
+   │          └─ Delegates to: npm --prefix frontend run build
+   │          └─ Executes: tsc -b && vite build
+   │          └─ Verifies: TypeScript type check & Vite bundle generation
+   │
+   └─> npm run install:all
+         └─ Delegates to: npm --prefix backend install && npm --prefix frontend install
+         └─ Installs dependencies into backend/node_modules & frontend/node_modules cleanly
+```
+
+---
+
+## 11. Segmented Backend Request Flow (Conforming to docs/api-contract.md)
+
+Detailed file-by-file execution flow across the newly segmented backend structure:
+
+```
+1. Incoming HTTP Request (e.g. GET /health or GET /api/v1):
+   │
+2. backend/src/server.js:
+   │  └─ Listening on port 5001 (or process.env.PORT)
+   │  └─ Forwards TCP request to app instance in backend/src/app.js
+   │
+3. backend/src/app.js (Middleware Pipeline):
+   │  ├─ Middleware 1: src/middlewares/requestId.middleware.js
+   │  │    └─ Sets req.id = crypto.randomUUID()
+   │  │    └─ Sets response header: res.setHeader('X-Request-ID', req.id)
+   │  │    └─ Calls next()
+   │  │
+   │  ├─ Middleware 2: src/middlewares/cors.middleware.js
+   │  │    └─ Validates Origin 'http://localhost:5173'
+   │  │    └─ Sets Access-Control-Allow-* headers
+   │  │    └─ Calls next()
+   │  │
+   │  ├─ Middleware 3: express.json({ limit: '100kb' })
+   │  │    └─ Parses JSON body if present
+   │  │    └─ Calls next()
+   │  │
+   │  └─ Router: src/routes/index.js
+   │       │
+   │       ├─ Route: /health -> src/modules/health/health.routes.js
+   │       │    └─ Handler: GET / -> src/modules/health/health.controller.js:checkHealth
+   │       │         └─ Calls: src/modules/health/health.service.js:getSystemHealth()
+   │       │         └─ Returns: res.status(200).json({ status: 'ok', timestamp, service, version, uptime_seconds })
+   │       │
+   │       ├─ Route: /api/v1 -> v1Router
+   │       │    └─ Handler: GET / -> returns operational status & registered endpoints
+   │       │    └─ (Future: mounts /identities, /applications, /accounts, /entitlements, /risk-findings)
+   │       │
+   │       └─ Route: GET / -> informational API root
+   │
+4. Unmatched Routes:
+   │  └─ Falls through to src/middlewares/notFound.middleware.js
+   │       └─ Calls src/helpers/response.helper.js:errorResponse()
+   │       └─ Returns HTTP 404: { error: { code: 'NOT_FOUND', message, request_id } }
+   │
+5. Central Error Handling:
+   │  └─ If any middleware/controller calls next(err):
+   │       └─ Caught by src/middlewares/errorHandler.middleware.js
+   │       └─ Logs error with req.id on server
+   │       └─ Formats safe JSON error envelope using src/helpers/response.helper.js
+```
+
+
+
