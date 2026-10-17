@@ -1,68 +1,28 @@
 import express from 'express';
-import cors from 'cors';
-import crypto from 'crypto';
-import { env } from './config/env.js';
+import { requestIdMiddleware } from './middlewares/requestId.middleware.js';
+import { corsMiddleware } from './middlewares/cors.middleware.js';
+import { notFoundMiddleware } from './middlewares/notFound.middleware.js';
+import { errorHandlerMiddleware } from './middlewares/errorHandler.middleware.js';
+import routes from './routes/index.js';
 
 const app = express();
 
-// Request ID middleware
-app.use((req, res, next) => {
-  const requestId = req.headers['x-request-id'] || crypto.randomUUID();
-  req.id = requestId;
-  res.setHeader('X-Request-ID', requestId);
-  next();
-});
+// 1. Request correlation ID middleware
+app.use(requestIdMiddleware);
 
-// CORS configuration
-app.use(cors({
-  origin: env.CORS_ORIGIN,
-  credentials: true
-}));
+// 2. CORS configuration middleware
+app.use(corsMiddleware);
 
-// Body parser with size limit
+// 3. Body parsing middleware with size limits
 app.use(express.json({ limit: '100kb' }));
 
-// Health check endpoint (outside versioned prefix as per docs/api-contract.md)
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    service: 'ivip-mini-backend',
-    version: '0.1.0'
-  });
-});
+// 4. Centralized routing (mounts /health and /api/v1)
+app.use(routes);
 
-// Root route
-app.get('/', (req, res) => {
-  res.status(200).json({
-    message: 'IVIP Mini API Server',
-    health: '/health',
-    version: 'v1'
-  });
-});
+// 5. 404 handler for unmatched routes
+app.use(notFoundMiddleware);
 
-// 404 Not Found handler
-app.use((req, res) => {
-  res.status(404).json({
-    error: {
-      code: 'NOT_FOUND',
-      message: `Cannot ${req.method} ${req.originalUrl}`,
-      request_id: req.id
-    }
-  });
-});
-
-// Centralized error handler
-app.use((err, req, res, next) => {
-  console.error(`[${req.id}] Error:`, err);
-  const status = err.status || 500;
-  res.status(status).json({
-    error: {
-      code: err.code || 'INTERNAL_ERROR',
-      message: err.message || 'An unexpected error occurred',
-      request_id: req.id
-    }
-  });
-});
+// 6. Centralized error handling middleware
+app.use(errorHandlerMiddleware);
 
 export default app;
