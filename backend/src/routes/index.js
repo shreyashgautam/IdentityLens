@@ -1,7 +1,15 @@
 import { Router } from 'express';
+import swaggerUi from 'swagger-ui-express';
 import healthRoutes from '../modules/health/health.routes.js';
+import { openApiSpec, swaggerOptions } from '../config/swagger.js';
 
 const router = Router();
+
+// Swagger Interactive API Documentation (/docs and /docs/openapi.json)
+router.get('/docs/openapi.json', (req, res) => {
+  res.status(200).json(openApiSpec);
+});
+router.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, swaggerOptions));
 
 // Liveness check outside versioned prefix (docs/api-contract.md Section 3 & 14.8)
 router.use('/health', healthRoutes);
@@ -12,7 +20,7 @@ router.get('/', (req, res) => {
     message: 'IVIP Mini API Server',
     health: '/health',
     api_base: '/api/v1',
-    docs: 'docs/api-contract.md'
+    docs: '/docs'
   });
 });
 
