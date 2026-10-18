@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test tests/",
-    "db:migrate": "node src/database/migrator.js"
+    "db:migrate": "node src/database/migrator.js",
+    "db:seed": "node src/database/seed.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

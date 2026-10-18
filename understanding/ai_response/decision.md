@@ -278,3 +278,21 @@ This document logs all key architectural, technical, library, and design decisio
   - *Prisma / TypeORM*: Rejected as per `docs/architecture.md` Section 2.1 to avoid ORM abstraction leaks, heavy generated client packages, and un-optimized queries. Native `pg` gives total control over parameterized SQL.
   - *Flyway / Liquibase / Umzug*: Adds Java dependencies or external CLI requirements; a custom ~80-line native Node.js runner handles SQL files natively with zero third-party migration dependencies.
 - **Accepted Trade-Off**: Requires writing clean, pure SQL migrations by hand, which guarantees transparency, predictable indexing, and direct alignment with PostgreSQL relational standards.
+
+---
+
+### Decision 18: Deterministic Development Seed Engine (Northstar Labs) and Idempotent Upsert Strategy
+
+- **Decision**:
+  1. Create a dedicated development seed script in `backend/src/database/seed.js` executable via `npm run db:seed` that generates a complete, connected synthetic dataset for fictional organization **Northstar Labs** (8 identities, 5 applications, 14 accounts, 10 entitlements, 18 assignments, 6 risk findings).
+  2. Implement strict environment safety guardrails rejecting execution if `NODE_ENV === 'production'` or if the target database name is not recognized as a development or test database.
+  3. Assign fixed deterministic UUID constants (`a000...`, `b000...`, `c000...`, `d000...`, `e000...`) combined with `ON CONFLICT (id) DO UPDATE / DO NOTHING`.
+  4. Enforce strict application boundary isolation: every account entitlement assignment only connects accounts and entitlements belonging to the exact same application.
+  5. Explicitly prefix and describe all risk findings with `[Synthetic]` to clearly communicate that they represent development fixtures rather than outputs of a real discovery engine.
+- **Why It Is Needed**:
+  - Provides instant, realistic relational data for developers and coding agents to test and verify query relationships across identities, application accounts, entitlements, and security findings.
+  - Deterministic IDs and transactional upserts guarantee 100% idempotency: running `npm run db:seed` repeatedly never creates duplicate records or disrupts existing development data.
+- **Alternatives Considered**:
+  - *Hardcoded SQL dump (`seed.sql`)*: Fragile to execute cross-platform and lacks programmatic safety assertions against `NODE_ENV`.
+  - *Randomly generated Faker UUIDs*: Creates duplicate records on every run, destroys relational consistency, and makes manual `curl` or `psql` verification unpredictable.
+- **Accepted Trade-Off**: Maintaining deterministic seed fixtures in JavaScript requires upfront schema mapping, but provides rock-solid, repeatable test data across all development environments.

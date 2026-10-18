@@ -229,3 +229,31 @@ Run all tests via:
 ```bash
 npm test
 ```
+
+---
+
+## 7. Synthetic Development Seed Dataset (Northstar Labs)
+
+A realistic, idempotent seed dataset for fictional company **Northstar Labs** is provided in [backend/src/database/seed.js](file:///Users/shreyashgautam/Desktop/IVIP/backend/src/database/seed.js).
+
+### 7.1 Dataset Scope & Distribution
+- **8 Canonical Identities**: 6 humans (Dr. Alice Morgan, Ben Carter, Nina Patel, David Kim, Elena Rostova, Marcus Vance), 1 CI/CD service account, and 1 SecOps scanner bot.
+- **5 Applications**: AWS Cloud Infrastructure, GitHub Enterprise, Google Workspace, Slack Enterprise, and Jira Software.
+- **14 Application Accounts**: Linking users to multiple target applications with varied lifecycle statuses (`active`, `disabled`, `suspended`). Includes one simulated orphaned AWS account (`identity_id: null`).
+- **10 Entitlements**: Roles, groups, and permissions partitioned strictly by target application (e.g. `AdministratorAccess`, `OrganizationOwner`, `SuperAdmin`).
+- **18 Account-Entitlement Assignments**: Every single assignment connects an account to an entitlement belonging to the **exact same application** (zero cross-application boundary leaks).
+- **6 Synthetic Risk Findings**: Explicitly labeled `[Synthetic]` detection records covering orphaned accounts, inactive employees with active admin accounts, bot privilege excess, and stale credentials.
+
+### 7.2 Running the Seed Script
+```bash
+# Run seed from root workspace
+npm run db:seed
+
+# Or directly in backend/
+npm --prefix backend run db:seed
+```
+
+### 7.3 Idempotency & Safety Guards
+- Uses fixed deterministic UUIDs (`a000...`, `b000...`, `c000...`, `d000...`, `e000...`) with `ON CONFLICT (id) DO UPDATE / DO NOTHING`.
+- Re-running `npm run db:seed` is safe and idempotent (never creates duplicate records).
+- Rejects execution if `NODE_ENV === 'production'` or target database is not a recognized development/test database.
