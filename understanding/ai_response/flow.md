@@ -411,7 +411,7 @@ Detailed file-by-file execution flow across the newly segmented backend structur
    │       ├─ Route: /health -> src/modules/health/health.routes.js
    │       │    ├─ GET / -> health.controller.js:checkHealth -> { status: 'ok', timestamp, service, version, uptime_seconds }
    │       │    ├─ GET /live -> health.controller.js:checkLiveness -> { status: 'ok', timestamp, checks: { process: 'up' } }
-   │       │    └─ GET /ready -> health.controller.js:checkReadiness -> { status: 'ok', ready: true, checks: { http: 'ready', database: 'pending_m3' } }
+   │       │    └─ GET /ready -> health.controller.js:checkReadiness -> calls checkDatabaseHealth() -> { status: 'ok', ready: true, checks: { http: 'ready', database: 'connected' }, database_latency_ms }
    │       │
    │       ├─ Route: /api/v1 -> v1Router
    │       │    └─ Handler: GET / -> returns operational status & registered endpoints
@@ -429,4 +429,37 @@ Detailed file-by-file execution flow across the newly segmented backend structur
    │       └─ Caught by src/middlewares/error-handler.js
    │       └─ Logs error with req.id on server
    │       └─ Formats safe JSON error envelope using src/helpers/response.helper.js
+```
+
+---
+
+## 12. PostgreSQL Connection Pool & Migration Pipeline (Milestone 3)
+
+```
+1. Startup & Environment Validation:
+   │  └─ backend/src/config/env.js: Validates DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD via Zod.
+   │
+2. Migration Execution (npm run db:migrate):
+   │  └─ backend/src/database/migrator.js:
+   │       ├─ Checks out client from pool.
+   │       ├─ Acquires exclusive advisory lock: pg_advisory_lock(894382741).
+   │       ├─ Creates schema_migrations table if not exists.
+   │       ├─ Scans backend/src/database/migrations/*.sql in ascending order.
+   │       ├─ For each pending migration:
+   │       │    └─ Runs inside transaction: BEGIN -> execute SQL -> record in schema_migrations -> COMMIT.
+   │       └─ Releases advisory lock in finally block.
+   │
+3. Application Query Pipeline:
+   │  └─ Service / Repository calls:
+   │       ├─ Single Query: backend/src/database/connection.js:query(text, params)
+   │       │    └─ Acquires connection from pool -> executes parameterized SQL -> releases to pool.
+   │       │
+   │       └─ Transaction (multi-step): backend/src/database/connection.js:getClient()
+   │            └─ Client checked out -> client.query('BEGIN') -> steps -> client.query('COMMIT') -> client.release().
+   │
+4. Readiness Probe Integration:
+   │  └─ GET /health/ready:
+   │       └─ health.service.js:getReadiness() -> calls checkDatabaseHealth() -> queries 'SELECT 1 AS alive'.
+   │       └─ If healthy: returns HTTP 200 { status: 'ok', ready: true, checks: { database: 'connected' }, database_latency_ms }.
+   │       └─ If down: returns HTTP 503 { status: 'error', ready: false, checks: { database: 'disconnected' } }.
 ```

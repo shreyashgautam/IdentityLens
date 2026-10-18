@@ -259,3 +259,22 @@ This document logs all key architectural, technical, library, and design decisio
   - *Postman Collection only*: Requires external desktop software and drifts easily from source code.
   - *External CDN Swagger*: Fails in offline development environments; `swagger-ui-express` bundles assets locally.
 - **Accepted Trade-Off**: Added lightweight `swagger-ui-express` dependency to serve offline assets cleanly.
+
+---
+
+### Decision 17: PostgreSQL Singleton Connection Pool, Advisory Locked Migration Runner, and Core Relational Schema
+
+- **Decision**:
+  1. Implement a centralized `pg.Pool` singleton in `backend/src/database/connection.js` configured via Zod environment validation (`backend/src/config/env.js`) with bounded pool size (`DB_POOL_MAX: 10`), idle timeout (30s), and connection timeout (2s).
+  2. Implement an idempotent, transaction-safe migration runner in `backend/src/database/migrator.js` that tracks applied files in `schema_migrations` and protects against concurrent runner execution using PostgreSQL advisory locks (`pg_advisory_lock(894382741)`).
+  3. Create initial schema migration `001_initial_schema.sql` defining all six core domain entities (`identities`, `applications`, `accounts`, `entitlements`, `account_entitlements`, `risk_findings`) matching `docs/data-model.md` with strict foreign keys, unique constraints, and check constraints (e.g. self-ownership prevention, entity reference validation).
+  4. Dynamically connect `/health/ready` to `checkDatabaseHealth()`, reporting real connectivity (`database: 'connected'`) and query latency while safely withholding credentials.
+  5. Strictly preserve `.env` without modifying it; document all database parameters with placeholders exclusively in `.env.example`.
+- **Why It Is Needed**:
+  - Establishes PostgreSQL as the durable, transactional source of truth for all subsequent milestones (M4–M12).
+  - Guarantees zero schema drift between developers, environments, and automated CI pipelines.
+  - Advisory locks prevent split-brain schema corruptions during multi-container deployments.
+- **Alternatives Considered**:
+  - *Prisma / TypeORM*: Rejected as per `docs/architecture.md` Section 2.1 to avoid ORM abstraction leaks, heavy generated client packages, and un-optimized queries. Native `pg` gives total control over parameterized SQL.
+  - *Flyway / Liquibase / Umzug*: Adds Java dependencies or external CLI requirements; a custom ~80-line native Node.js runner handles SQL files natively with zero third-party migration dependencies.
+- **Accepted Trade-Off**: Requires writing clean, pure SQL migrations by hand, which guarantees transparency, predictable indexing, and direct alignment with PostgreSQL relational standards.

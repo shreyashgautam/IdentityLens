@@ -11,6 +11,7 @@ This documentation is segmented by domain to provide clear, actionable understan
 | Document | Description | Key Routes Covered |
 |---|---|---|
 | [basic-routes.md](file:///Users/shreyashgautam/Desktop/IVIP/backend/understand/basic-routes.md) | Core system gateways, probes, Swagger, and error handling | `/`, `/health`, `/health/live`, `/health/ready`, `/docs`, `/api/v1`, `404` |
+| [database.md](file:///Users/shreyashgautam/Desktop/IVIP/backend/understand/database.md) | PostgreSQL architecture, connection pool, migrations, and schema | Connection pool, migrations runner, 6 tables, health check |
 | [identity-routes.md](file:///Users/shreyashgautam/Desktop/IVIP/backend/understand/identity-routes.md) | Canonical identity inventory (human, service accounts, bots) | `GET/POST /api/v1/identities`, `GET/PATCH /api/v1/identities/:id` |
 | [application-routes.md](file:///Users/shreyashgautam/Desktop/IVIP/backend/understand/application-routes.md) | Connected target systems & SaaS applications | `GET/POST /api/v1/applications`, `GET/PATCH /api/v1/applications/:id` |
 | [account-routes.md](file:///Users/shreyashgautam/Desktop/IVIP/backend/understand/account-routes.md) | Application accounts and entitlement assignments | `GET/POST /api/v1/accounts`, `GET/POST/DELETE /accounts/:id/entitlements` |
