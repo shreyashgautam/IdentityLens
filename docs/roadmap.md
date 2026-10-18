@@ -614,7 +614,7 @@ Never mark a milestone `DONE` while required acceptance criteria remain unmet.
 |---|---|---|---|---|
 | **M0: Repository & Documentation** | `DONE` | All 14 Markdown specs established, root `AGENTS.md` formalized, canonical path `security/threat-model.md` normalized, root workspace scripts added. | None. Phase 0 acceptance gates satisfied. | Proceed to M1 & M2 verification. |
 | **M1: Development Environment** | `IN_PROGRESS` | React TS Vite 6 frontend & Express backend scaffolded, dev servers running, root `npm run dev:*` scripts operational. | Verify local PostgreSQL environment & credentials. | Configure PostgreSQL local connection. |
-| **M2: Backend Foundation** | `IN_PROGRESS` | Decoupled `server.js` and `app.js`, `GET /health` route, Zod config validation, CORS, Request-ID, automated unit tests passing. | Rate limiting middleware, centralized error handling expansion. | Expand security middleware & tests. |
+| **M2: Backend Foundation** | `DONE` | Decoupled `server.js` and `app.js`, Zod env validation, kebab-case middlewares (`request-id`, `cors`, `security-headers`, `not-found`, `error-handler`, `validate`), multi-probe health API (`/health`, `/health/live`, `/health/ready`), native Node test suite (8/8 tests pass). | None. M2 acceptance criteria satisfied. | Proceed to M3 Database Foundation. |
 | **M3: Database Foundation** | `NOT_STARTED` | Relational model defined in `docs/data-model.md`. | Install `pg`, create migration runner, execute initial schema DDL. | M3 Migration Runner. |
 | **M4–M14** | `NOT_STARTED` | Documented in architecture & API contracts. | Dependent on preceding milestones. | Follow dependency order. |
 

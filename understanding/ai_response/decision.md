@@ -218,5 +218,44 @@ This document logs all key architectural, technical, library, and design decisio
   - *Inlining middlewares & handlers in `app.js`*: Faster for initial prototyping, but leads to monolithic file bloat, poor testability, and violates modular monolith principles.
 - **Accepted Trade-Off**: More files created upfront, but provides crystal-clear boundaries and zero tech debt as subsequent feature modules are introduced.
 
+---
 
+### Decision 15: Kebab-Case Middleware Conventions, Defense-in-Depth Security Headers, and Health Probe Architecture
 
+- **Decision**:
+  1. Standardize middleware filenames to kebab-case matching standard industry conventions and user repository schema (`src/middlewares/error-handler.js`, `not-found.js`, `request-id.js`, `cors.js`, `validate.js`, `security-headers.js`).
+  2. Implement native defense-in-depth security headers middleware setting `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 0`, and `Referrer-Policy: strict-origin-when-cross-origin` (with HSTS conditional on production).
+  3. Decompose health endpoints into three explicit probes conforming to `docs/api-contract.md` Section 14.8 and M2 requirements:
+     - `GET /health`: General system metadata, timestamp, version, and process uptime.
+     - `GET /health/live`: Liveness probe indicating process vitality (`{ checks: { process: 'up' } }`).
+     - `GET /health/ready`: Readiness probe indicating HTTP listener readiness, explicitly decoupled from M3 PostgreSQL connectivity (`{ ready: true, checks: { http: 'ready', database: 'pending_m3' } }`).
+  4. Migrate test directory from `backend/test/` to `backend/tests/` matching standard test convention, and execute via native `node --test tests/`.
+- **Why It Is Needed**:
+  - Adheres strictly to the user's required directory schema and file naming requirements.
+  - Guarantees container orchestration platforms (Kubernetes, Docker Swarm, ECS) can monitor process liveness and readiness independently without false-positive readiness reporting.
+  - Enforces baseline security headers on every response before adding business endpoints.
+- **Alternatives Considered**:
+  - *Single `/health` endpoint*: Fails to distinguish container liveness from application readiness.
+  - *Mocking database connection in M2*: Violates rule against premature database layer introduction before Milestone 3.
+- **Accepted Trade-Off**: Readiness probe explicitly reports database status as `pending_m3` until PostgreSQL connection pool and migrations are completed in M3.
+
+---
+
+### Decision 16: OpenAPI 3.0 Documentation via Native Swagger UI (`/docs`) and Domain Route Documentation (`backend/understand/`)
+
+- **Decision**:
+  1. Add `swagger-ui-express` to serve interactive OpenAPI 3.0 documentation directly from the backend at `GET /docs` and the raw specification at `GET /docs/openapi.json`.
+  2. Create a dedicated documentation suite in `backend/understand/` with individual markdown guides for each functional group:
+     - `basic-routes.md`: Operational gateways, health probes (`/health`, `/health/live`, `/health/ready`), Swagger routes, and error handling.
+     - `identity-routes.md`: Canonical identity inventory (`GET/POST /api/v1/identities`, `GET/PATCH /api/v1/identities/:id`).
+     - `application-routes.md`: Target applications (`GET/POST /api/v1/applications`, `GET/PATCH /api/v1/applications/:id`).
+     - `account-routes.md`: Application accounts and entitlement assignments (`GET/POST /api/v1/accounts`, `GET/POST/DELETE /accounts/:id/entitlements`).
+     - `entitlement-routes.md`: Defined permissions and roles (`GET/POST /api/v1/entitlements`, `GET/PATCH /api/v1/entitlements/:id`).
+     - `risk-routes.md`: Deterministic risk findings and background evaluation tasks (`GET/PATCH /api/v1/risk-findings`, `POST /risk-evaluations`, `GET /tasks/:id`).
+- **Why It Is Needed**:
+  - Provides instant, interactive browser exploration and automated contract verification via Swagger UI without requiring external tools.
+  - Gives developers and AI coding agents explicit, copy-pasteable `curl` commands, request payloads, and response envelopes for every single backend route.
+- **Alternatives Considered**:
+  - *Postman Collection only*: Requires external desktop software and drifts easily from source code.
+  - *External CDN Swagger*: Fails in offline development environments; `swagger-ui-express` bundles assets locally.
+- **Accepted Trade-Off**: Added lightweight `swagger-ui-express` dependency to serve offline assets cleanly.

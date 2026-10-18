@@ -384,26 +384,34 @@ Detailed file-by-file execution flow across the newly segmented backend structur
    │  └─ Forwards TCP request to app instance in backend/src/app.js
    │
 3. backend/src/app.js (Middleware Pipeline):
-   │  ├─ Middleware 1: src/middlewares/requestId.middleware.js
-   │  │    └─ Sets req.id = crypto.randomUUID()
+   │  ├─ Middleware 1: src/middlewares/request-id.js
+   │  │    └─ Sets req.id = req.headers['x-request-id'] || crypto.randomUUID()
    │  │    └─ Sets response header: res.setHeader('X-Request-ID', req.id)
    │  │    └─ Calls next()
    │  │
-   │  ├─ Middleware 2: src/middlewares/cors.middleware.js
+   │  ├─ Middleware 2: src/middlewares/security-headers.js
+   │  │    └─ Sets X-Content-Type-Options: nosniff
+   │  │    └─ Sets X-Frame-Options: DENY
+   │  │    └─ Sets X-XSS-Protection: 0
+   │  │    └─ Sets Referrer-Policy: strict-origin-when-cross-origin
+   │  │    └─ Sets Strict-Transport-Security in production
+   │  │    └─ Calls next()
+   │  │
+   │  ├─ Middleware 3: src/middlewares/cors.js
    │  │    └─ Validates Origin 'http://localhost:5173'
    │  │    └─ Sets Access-Control-Allow-* headers
    │  │    └─ Calls next()
    │  │
-   │  ├─ Middleware 3: express.json({ limit: '100kb' })
+   │  ├─ Middleware 4: express.json({ limit: '100kb' })
    │  │    └─ Parses JSON body if present
    │  │    └─ Calls next()
    │  │
    │  └─ Router: src/routes/index.js
    │       │
    │       ├─ Route: /health -> src/modules/health/health.routes.js
-   │       │    └─ Handler: GET / -> src/modules/health/health.controller.js:checkHealth
-   │       │         └─ Calls: src/modules/health/health.service.js:getSystemHealth()
-   │       │         └─ Returns: res.status(200).json({ status: 'ok', timestamp, service, version, uptime_seconds })
+   │       │    ├─ GET / -> health.controller.js:checkHealth -> { status: 'ok', timestamp, service, version, uptime_seconds }
+   │       │    ├─ GET /live -> health.controller.js:checkLiveness -> { status: 'ok', timestamp, checks: { process: 'up' } }
+   │       │    └─ GET /ready -> health.controller.js:checkReadiness -> { status: 'ok', ready: true, checks: { http: 'ready', database: 'pending_m3' } }
    │       │
    │       ├─ Route: /api/v1 -> v1Router
    │       │    └─ Handler: GET / -> returns operational status & registered endpoints
@@ -412,16 +420,13 @@ Detailed file-by-file execution flow across the newly segmented backend structur
    │       └─ Route: GET / -> informational API root
    │
 4. Unmatched Routes:
-   │  └─ Falls through to src/middlewares/notFound.middleware.js
+   │  └─ Falls through to src/middlewares/not-found.js
    │       └─ Calls src/helpers/response.helper.js:errorResponse()
    │       └─ Returns HTTP 404: { error: { code: 'NOT_FOUND', message, request_id } }
    │
 5. Central Error Handling:
    │  └─ If any middleware/controller calls next(err):
-   │       └─ Caught by src/middlewares/errorHandler.middleware.js
+   │       └─ Caught by src/middlewares/error-handler.js
    │       └─ Logs error with req.id on server
    │       └─ Formats safe JSON error envelope using src/helpers/response.helper.js
 ```
-
-
-
