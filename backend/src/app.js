@@ -1,28 +1,32 @@
 import express from 'express';
-import { requestIdMiddleware } from './middlewares/requestId.middleware.js';
-import { corsMiddleware } from './middlewares/cors.middleware.js';
-import { notFoundMiddleware } from './middlewares/notFound.middleware.js';
-import { errorHandlerMiddleware } from './middlewares/errorHandler.middleware.js';
+import { requestIdMiddleware } from './middlewares/request-id.js';
+import { securityHeadersMiddleware } from './middlewares/security-headers.js';
+import { corsMiddleware } from './middlewares/cors.js';
+import { notFoundMiddleware } from './middlewares/not-found.js';
+import { errorHandlerMiddleware } from './middlewares/error-handler.js';
 import routes from './routes/index.js';
 
 const app = express();
 
-// 1. Request correlation ID middleware
+// 1. Request correlation ID middleware (early tracking)
 app.use(requestIdMiddleware);
 
-// 2. CORS configuration middleware
+// 2. HTTP Security headers (defense in depth)
+app.use(securityHeadersMiddleware);
+
+// 3. CORS configuration middleware
 app.use(corsMiddleware);
 
-// 3. Body parsing middleware with size limits
+// 4. Body parsing middleware with size limits (100kb payload ceiling)
 app.use(express.json({ limit: '100kb' }));
 
-// 4. Centralized routing (mounts /health and /api/v1)
+// 5. Centralized routing (mounts /health, /, and /api/v1)
 app.use(routes);
 
-// 5. 404 handler for unmatched routes
+// 6. 404 handler for unmatched routes
 app.use(notFoundMiddleware);
 
-// 6. Centralized error handling middleware
+// 7. Centralized error handling middleware
 app.use(errorHandlerMiddleware);
 
 export default app;
