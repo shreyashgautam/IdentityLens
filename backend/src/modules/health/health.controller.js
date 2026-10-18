@@ -23,10 +23,11 @@ export const checkLiveness = (req, res, next) => {
   }
 };
 
-export const checkReadiness = (req, res, next) => {
+export const checkReadiness = async (req, res, next) => {
   try {
-    const readiness = healthService.getReadiness();
-    return res.status(200).json(readiness);
+    const readiness = await healthService.getReadiness();
+    const statusCode = readiness.ready ? 200 : 503;
+    return res.status(statusCode).json(readiness);
   } catch (err) {
     next(err);
   }

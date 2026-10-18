@@ -1,7 +1,9 @@
+import { checkDatabaseHealth } from '../../database/connection.js';
+
 /**
  * Health Service
  * Provides system liveness, readiness, uptime, and service metadata
- * Conforms to docs/api-contract.md Section 14.8 & M2 Acceptance Criteria
+ * Conforms to docs/api-contract.md Section 14.8 & M3 Acceptance Criteria
  */
 
 export const getSystemHealth = () => {
@@ -24,16 +26,20 @@ export const getLiveness = () => {
   };
 };
 
-export const getReadiness = () => {
-  // In M2, database connectivity is not yet introduced (scheduled for M3).
-  // Readiness signals that Express HTTP listener and routing are fully initialized.
+export const getReadiness = async () => {
+  const dbHealth = await checkDatabaseHealth();
+  const isReady = dbHealth.healthy;
+
   return {
-    status: 'ok',
-    ready: true,
+    status: isReady ? 'ok' : 'error',
+    ready: isReady,
     timestamp: new Date().toISOString(),
     checks: {
       http: 'ready',
-      database: 'pending_m3'
-    }
+      database: isReady ? 'connected' : 'disconnected'
+    },
+    ...(isReady
+      ? { database_latency_ms: dbHealth.latencyMs }
+      : { error: dbHealth.error })
   };
 };

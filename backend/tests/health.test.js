@@ -1,6 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import app from '../src/app.js';
+import { closePool } from '../src/database/connection.js';
 
 describe('Backend Foundation & Health Probes API', () => {
   let server;
@@ -19,6 +20,7 @@ describe('Backend Foundation & Health Probes API', () => {
 
   after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    await closePool();
   });
 
   test('GET /health returns 200 OK and expected system metadata schema', async () => {
@@ -52,7 +54,8 @@ describe('Backend Foundation & Health Probes API', () => {
     assert.equal(body.status, 'ok');
     assert.equal(body.ready, true);
     assert.equal(body.checks.http, 'ready');
-    assert.equal(body.checks.database, 'pending_m3');
+    assert.equal(body.checks.database, 'connected');
+    assert.ok(typeof body.database_latency_ms === 'number');
   });
 
   test('GET / returns 200 OK with service description and docs route', async () => {
