@@ -244,9 +244,9 @@ Implement the foundational inventory resources.
 
 Implement the documented APIs for:
 
-- Identities
-- Applications
-- Accounts
+- Identities (M4 Part 1: Completed — `GET`, `GET /:id`, `POST`, `PATCH` implemented with Zod validation, parameterized SQL, recursive ownership cycle detection, allowlisted sorting, pagination, and 21 automated integration tests)
+- Applications (M4 Part 2: Pending)
+- Accounts (M4 Part 3: Pending)
 
 For each module, implement the appropriate:
 
