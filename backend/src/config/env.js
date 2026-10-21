@@ -15,7 +15,12 @@ const envSchema = z.object({
   DB_NAME: z.string().default('identitylens'),
   DB_USER: z.string().default(process.env.USER || 'shreyashgautam'),
   DB_PASSWORD: z.string().default(''),
-  DB_SSL: z.coerce.boolean().default(false),
+  DB_SSL: z
+    .preprocess((val) => {
+      if (typeof val === 'string') return val.toLowerCase() === 'true' || val === '1';
+      return Boolean(val);
+    }, z.boolean())
+    .default(false),
   DB_POOL_MAX: z.coerce.number().default(10),
   DB_IDLE_TIMEOUT_MS: z.coerce.number().default(30000),
   DB_CONNECTION_TIMEOUT_MS: z.coerce.number().default(2000)

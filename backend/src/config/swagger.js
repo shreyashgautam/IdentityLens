@@ -170,13 +170,17 @@ export const openApiSpec = {
     '/api/v1/identities': {
       get: {
         summary: 'List Canonical Identities',
-        description: 'Retrieves a paginated list of canonical human and non-human identities.',
+        description: 'Retrieves a paginated list of canonical human and non-human identities with filtering, searching, and sorting.',
         tags: ['Identities'],
         parameters: [
-          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
-          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
-          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'inactive', 'suspended'] } },
-          { name: 'type', in: 'query', schema: { type: 'string', enum: ['human', 'service_account', 'bot'] } }
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1, minimum: 1 }, description: 'One-based page number' },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, minimum: 1, maximum: 100 }, description: 'Records per page' },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'inactive', 'suspended', 'unknown'] } },
+          { name: 'identity_type', in: 'query', schema: { type: 'string', enum: ['human', 'service_account', 'bot', 'ai_agent'] } },
+          { name: 'department', in: 'query', schema: { type: 'string' } },
+          { name: 'search', in: 'query', schema: { type: 'string' }, description: 'Search across display name, email, title, and department' },
+          { name: 'sort_by', in: 'query', schema: { type: 'string', enum: ['display_name', 'email', 'status', 'identity_type', 'department', 'created_at', 'updated_at'], default: 'created_at' } },
+          { name: 'sort_order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' } }
         ],
         responses: {
           '200': {
@@ -184,6 +188,14 @@ export const openApiSpec = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/IdentityCollectionResponse' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
               }
             }
           }
@@ -221,13 +233,13 @@ export const openApiSpec = {
         }
       }
     },
-    '/api/v1/identities/{id}': {
+    '/api/v1/identities/{identityId}': {
       get: {
         summary: 'Get Identity Details',
         description: 'Retrieves complete profile details for a canonical identity by UUID.',
         tags: ['Identities'],
         parameters: [
-          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+          { name: 'identityId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' }, description: 'Target identity UUID' }
         ],
         responses: {
           '200': {
@@ -245,15 +257,23 @@ export const openApiSpec = {
                 schema: { $ref: '#/components/schemas/ErrorEnvelope' }
               }
             }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
           }
         }
       },
       patch: {
         summary: 'Update Identity',
-        description: 'Partially updates an existing identity record.',
+        description: 'Partially updates an existing identity record. Enforces ownership hierarchy and cycle prevention.',
         tags: ['Identities'],
         parameters: [
-          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+          { name: 'identityId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' }, description: 'Target identity UUID' }
         ],
         requestBody: {
           required: true,
@@ -262,9 +282,13 @@ export const openApiSpec = {
               schema: {
                 type: 'object',
                 properties: {
-                  status: { type: 'string', enum: ['active', 'inactive', 'suspended'] },
-                  department: { type: 'string' },
-                  title: { type: 'string' }
+                  display_name: { type: 'string' },
+                  identity_type: { type: 'string', enum: ['human', 'service_account', 'bot', 'ai_agent'] },
+                  email: { type: 'string', format: 'email', nullable: true },
+                  status: { type: 'string', enum: ['active', 'inactive', 'suspended', 'unknown'] },
+                  owner_id: { type: 'string', format: 'uuid', nullable: true },
+                  department: { type: 'string', nullable: true },
+                  title: { type: 'string', nullable: true }
                 }
               }
             }
@@ -276,6 +300,38 @@ export const openApiSpec = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/IdentitySingleResponse' }
+              }
+            }
+          },
+          '400': {
+            description: 'Bad Request - Empty body',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '404': {
+            description: 'Identity not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '409': {
+            description: 'Conflict - Ownership cycle detected',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
               }
             }
           }

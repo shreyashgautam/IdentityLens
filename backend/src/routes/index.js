@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import swaggerUi from 'swagger-ui-express';
 import healthRoutes from '../modules/health/health.routes.js';
+import identityRoutes from '../modules/identities/identity.routes.js';
 import { openApiSpec, swaggerOptions } from '../config/swagger.js';
 
 const router = Router();
@@ -27,8 +28,8 @@ router.get('/', (req, res) => {
 // Versioned API Router (/api/v1)
 const v1Router = Router();
 
-// Future feature modules will mount here:
-// v1Router.use('/identities', identityRoutes);
+// Milestone 4 — Inventory Modules
+v1Router.use('/identities', identityRoutes);
 // v1Router.use('/applications', applicationRoutes);
 // v1Router.use('/accounts', accountRoutes);
 // v1Router.use('/entitlements', entitlementRoutes);
