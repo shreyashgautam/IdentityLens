@@ -341,8 +341,17 @@ export const openApiSpec = {
     '/api/v1/applications': {
       get: {
         summary: 'List Applications',
-        description: 'Lists connected SaaS platforms, cloud providers, and on-premises target systems.',
+        description: 'Lists connected SaaS platforms, cloud providers, and on-premises target systems with pagination, filtering, searching, and sorting.',
         tags: ['Applications'],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1, minimum: 1 }, description: 'One-based page number' },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, minimum: 1, maximum: 100 }, description: 'Records per page' },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'inactive', 'deprecated'] } },
+          { name: 'auth_type', in: 'query', schema: { type: 'string' }, description: 'Authentication protocol (iam, oauth2, saml, sso, etc.)' },
+          { name: 'search', in: 'query', schema: { type: 'string' }, description: 'Search across application name, key, and description' },
+          { name: 'sort_by', in: 'query', schema: { type: 'string', enum: ['name', 'key', 'status', 'auth_type', 'created_at', 'updated_at'], default: 'created_at' } },
+          { name: 'sort_order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' } }
+        ],
         responses: {
           '200': {
             description: 'List of registered applications',
@@ -351,12 +360,20 @@ export const openApiSpec = {
                 schema: { $ref: '#/components/schemas/ApplicationCollectionResponse' }
               }
             }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
           }
         }
       },
       post: {
         summary: 'Register Application',
-        description: 'Registers a new target system application.',
+        description: 'Registers a new target system application with unique key validation.',
         tags: ['Applications'],
         requestBody: {
           required: true,
@@ -368,7 +385,9 @@ export const openApiSpec = {
                 properties: {
                   name: { type: 'string', example: 'Salesforce Production' },
                   key: { type: 'string', example: 'salesforce_prod' },
-                  description: { type: 'string', example: 'Corporate CRM system' }
+                  description: { type: 'string', example: 'Corporate CRM system' },
+                  status: { type: 'string', enum: ['active', 'inactive', 'deprecated'], default: 'active' },
+                  auth_type: { type: 'string', example: 'saml', default: 'password' }
                 }
               }
             }
@@ -376,7 +395,131 @@ export const openApiSpec = {
         },
         responses: {
           '201': {
-            description: 'Application registered successfully'
+            description: 'Application registered successfully',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ApplicationSingleResponse' }
+              }
+            }
+          },
+          '409': {
+            description: 'Conflict - Application key already exists',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/v1/applications/{applicationId}': {
+      get: {
+        summary: 'Get Application Details',
+        description: 'Retrieves complete configuration details for a target application by UUID.',
+        tags: ['Applications'],
+        parameters: [
+          { name: 'applicationId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' }, description: 'Target application UUID' }
+        ],
+        responses: {
+          '200': {
+            description: 'Application record details',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ApplicationSingleResponse' }
+              }
+            }
+          },
+          '404': {
+            description: 'Application not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      },
+      patch: {
+        summary: 'Update Application',
+        description: 'Partially updates an existing target application record.',
+        tags: ['Applications'],
+        parameters: [
+          { name: 'applicationId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' }, description: 'Target application UUID' }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  key: { type: 'string' },
+                  description: { type: 'string', nullable: true },
+                  status: { type: 'string', enum: ['active', 'inactive', 'deprecated'] },
+                  auth_type: { type: 'string' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Updated application record',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ApplicationSingleResponse' }
+              }
+            }
+          },
+          '400': {
+            description: 'Bad Request - Empty body',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '404': {
+            description: 'Application not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '409': {
+            description: 'Conflict - Application key already taken',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
           }
         }
       }
@@ -499,6 +642,30 @@ export const openApiSpec = {
           department: { type: 'string', example: 'Engineering' }
         }
       },
+      ApplicationSingleResponse: {
+        type: 'object',
+        properties: {
+          data: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+              key: { type: 'string' },
+              description: { type: 'string', nullable: true },
+              status: { type: 'string', enum: ['active', 'inactive', 'deprecated'] },
+              auth_type: { type: 'string' },
+              created_at: { type: 'string', format: 'date-time' },
+              updated_at: { type: 'string', format: 'date-time' }
+            }
+          },
+          meta: {
+            type: 'object',
+            properties: {
+              request_id: { type: 'string', format: 'uuid' }
+            }
+          }
+        }
+      },
       ApplicationCollectionResponse: {
         type: 'object',
         properties: {
@@ -510,8 +677,29 @@ export const openApiSpec = {
                 id: { type: 'string', format: 'uuid' },
                 name: { type: 'string' },
                 key: { type: 'string' },
-                description: { type: 'string' }
+                description: { type: 'string', nullable: true },
+                status: { type: 'string', enum: ['active', 'inactive', 'deprecated'] },
+                auth_type: { type: 'string' },
+                created_at: { type: 'string', format: 'date-time' },
+                updated_at: { type: 'string', format: 'date-time' }
               }
+            }
+          },
+          pagination: {
+            type: 'object',
+            properties: {
+              page: { type: 'integer' },
+              limit: { type: 'integer' },
+              total: { type: 'integer' },
+              total_pages: { type: 'integer' },
+              has_next: { type: 'boolean' },
+              has_prev: { type: 'boolean' }
+            }
+          },
+          meta: {
+            type: 'object',
+            properties: {
+              request_id: { type: 'string', format: 'uuid' }
             }
           }
         }
