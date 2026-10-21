@@ -783,6 +783,7 @@ All routes below are relative to `/api/v1`.
 - `GET /identities/:id`
 - `POST /identities`
 - `PATCH /identities/:id`
+- `GET /identities/:id/accounts`
 
 Support documented pagination, filtering, sorting, and search where applicable.
 
@@ -792,6 +793,7 @@ Support documented pagination, filtering, sorting, and search where applicable.
 - `GET /applications/:id`
 - `POST /applications`
 - `PATCH /applications/:id`
+- `GET /applications/:id/accounts`
 
 ### 14.3 Accounts
 

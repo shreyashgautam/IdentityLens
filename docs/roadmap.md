@@ -246,7 +246,7 @@ Implement the documented APIs for:
 
 - Identities (M4 Part 1: Completed — `GET`, `GET /:id`, `POST`, `PATCH` implemented with Zod validation, parameterized SQL, recursive ownership cycle detection, allowlisted sorting, pagination, and 21 automated integration tests)
 - Applications (M4 Part 2: Completed — `GET`, `GET /:id`, `POST`, `PATCH` implemented with Zod validation, parameterized SQL, unique key conflict handling, allowlisted sorting, pagination, and 21 automated integration tests)
-- Accounts (M4 Part 3: Pending)
+- Accounts & Relationships (M4 Part 3: Completed — `GET`, `GET /:id`, `POST`, `PATCH /accounts`, `GET /identities/:id/accounts`, `GET /applications/:id/accounts` implemented with Zod validation, parameterized SQL, foreign key validation, composite uniqueness conflict handling, orphan account filtering, allowlisted sorting, pagination, and 35 automated integration tests. Milestone 4 is fully completed with 95 passing tests across 5 test suites)
 
 For each module, implement the appropriate:
 

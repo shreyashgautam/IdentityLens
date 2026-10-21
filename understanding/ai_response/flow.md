@@ -556,3 +556,74 @@ Detailed file-by-file execution flow across the newly segmented backend structur
 7. Database Layer (PostgreSQL):
    └─ Evaluates SQL against applications table and returns typed rows to pool client.
 ```
+
+---
+
+## 15. Account & Relationship Request Execution Flow (Milestone 4 — Part 3)
+
+The Account module provides inventory management for target SaaS/cloud accounts and relationship sub-routes for identities and applications. It strictly enforces the repository dependency direction:
+
+```
+Routes -> Controllers -> Services -> Repositories -> PostgreSQL
+```
+
+### Complete End-to-End Account Execution Trace
+
+```
+1. Client HTTP Request:
+   │  GET /api/v1/accounts?is_orphan=true&page=1&limit=20
+   │  POST /api/v1/accounts
+   │  GET /api/v1/identities/:identityId/accounts
+   │  GET /api/v1/applications/:applicationId/accounts
+   │
+   ▼
+2. Global Middleware Stack (app.js):
+   │  ├─ requestIdMiddleware: Generates or correlates X-Request-ID (req.id).
+   │  ├─ securityHeadersMiddleware: Adds nosniff, DENY, Referrer-Policy, HSTS.
+   │  ├─ corsMiddleware: Origin verification (http://localhost:5173).
+   │  └─ express.json({ limit: '100kb' }): Parses JSON body with payload ceiling.
+   │
+   ▼
+3. Central Routing:
+   │  ├─ routes/index.js -> /api/v1/accounts (account.routes.js):
+   │  │    ├─ GET /: validate({ query: listAccountsQuerySchema })
+   │  │    ├─ GET /:accountId: validate({ params: accountIdParamSchema })
+   │  │    ├─ POST /: validate({ body: createAccountBodySchema })
+   │  │    └─ PATCH /:accountId: validate({ params }) -> requireNonEmptyBody -> validate({ body: updateAccountBodySchema })
+   │  ├─ identity.routes.js:
+   │  │    └─ GET /:identityId/accounts: validate({ params, query }) -> accountController.getAccountsByIdentity
+   │  └─ application.routes.js:
+   │       └─ GET /:applicationId/accounts: validate({ params, query }) -> accountController.getAccountsByApplication
+   │
+   ▼
+4. Controller Layer (account.controller.js):
+   │  └─ Unpacks req.validatedParams, req.validatedQuery, req.validatedBody.
+   │  └─ Delegates to account.service.js methods.
+   │  └─ Formats standard envelopes via successResponse(res, data, { status, pagination }).
+   │
+   ▼
+5. Service Layer (account.service.js):
+   │  ├─ Parent Existence Verification:
+   │  │    ├─ listAccountsByIdentity: Verifies identityExists(identityId), throws 404 IDENTITY_NOT_FOUND if missing.
+   │  │    └─ listAccountsByApplication: Verifies applicationExists(applicationId), throws 404 APPLICATION_NOT_FOUND if missing.
+   │  ├─ Foreign Key Verification:
+   │  │    ├─ Verifies applicationExists(application_id), throws 422 VALIDATION_ERROR if invalid.
+   │  │    └─ Verifies identityExists(identity_id) when non-null, throws 422 VALIDATION_ERROR if invalid.
+   │  ├─ Composite Uniqueness Pre-Check & Race-Condition Defense:
+   │  │    ├─ Checks (application_id, external_id) conflict before write statement.
+   │  │    └─ Catches PostgreSQL code 23505 (uq_accounts_app_external_id) and maps to 409 RESOURCE_CONFLICT.
+   │  └─ Pagination Calculations: offset = (page - 1) * limit, total_pages, has_next, has_prev.
+   │
+   ▼
+6. Repository Layer (account.repository.js):
+   │  ├─ Strictly parameterized SQL ($1, $2, ...) prevents SQL injection.
+   │  ├─ Dynamic WHERE construction for application_id, identity_id, status, is_orphan (IS NULL / IS NOT NULL).
+   │  ├─ Case-insensitive multi-column ILIKE search (external_id, account_name, email).
+   │  ├─ Sort allowlist enforcement with stable secondary tie-breaker (id ASC).
+   │  └─ Explicitly touches updated_at = NOW() during PATCH updates.
+   │
+   ▼
+7. Database Layer (PostgreSQL):
+   └─ Evaluates SQL against accounts table and returns typed rows to pool client.
+```
+

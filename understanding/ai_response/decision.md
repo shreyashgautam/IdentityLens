@@ -337,5 +337,30 @@ This document logs all key architectural, technical, library, and design decisio
   - Protects against accidental cascading deletion of organizational account inventories.
 - **Alternatives Considered**:
   - *Hard Deletion with Unlinking*: Rejected because accounts and entitlements intrinsically belong to a specific application and cannot exist without a parent application ID (`application_id UUID NOT NULL`).
-- **Accepted Trade-Off**: Application retirement must be performed via status deactivation rather than permanent deletion.
+---
+
+### Decision 21: Account APIs, Composite Uniqueness, Relationship Endpoints, and Exact-ID Isolation
+
+- **Decision**:
+  1. Implement Account endpoints under `/api/v1/accounts` adhering strictly to `docs/api-contract.md` Section 14.3:
+     - `GET /api/v1/accounts`: Collection retrieval with Zod-validated pagination (`page >= 1`, `limit <= 100`), exact filters (`application_id`, `identity_id`, `status`), orphan account filtering (`is_orphan=true/false` checking `identity_id IS NULL / IS NOT NULL`), multi-column case-insensitive ILIKE search (`external_id`, `account_name`, `email`), and allowlisted sorting with stable secondary sort (`id ASC`).
+     - `GET /api/v1/accounts/:accountId`: Single account lookup returning normalized flat representation.
+     - `POST /api/v1/accounts`: Account creation verifying foreign keys (`application_id` and optional `identity_id`), enforcing composite uniqueness, and returning 201 Created.
+     - `PATCH /api/v1/accounts/:accountId`: Partial update supporting linking/unlinking (`identity_id: null`), updating status, rejecting empty body with 400 Bad Request, and touching `updated_at = NOW()`.
+  2. **Nested Relationship Endpoints**:
+     - `GET /api/v1/identities/:identityId/accounts`: Enforces parent identity existence (returns 404 `IDENTITY_NOT_FOUND` if missing), then queries accounts linked to that identity.
+     - `GET /api/v1/applications/:applicationId/accounts`: Enforces parent application existence (returns 404 `APPLICATION_NOT_FOUND` if missing), then queries accounts provisioned in that application.
+  3. **Composite Uniqueness Enforcement (`(application_id, external_id)`)**:
+     - Pre-checks collisions in service layer, and handles concurrent race conditions by catching PostgreSQL unique violation error code `23505` on `uq_accounts_app_external_id`, translating it to `409 Conflict` (`RESOURCE_CONFLICT`).
+  4. **Exclusion of Hard Deletion (`DELETE`)**:
+     - Deliberately exclude `DELETE /accounts/:id`. Accounts have cascading dependencies on `account_entitlements` and `risk_findings`. Deleting an account wipes out historical entitlement grants and risk findings. Offboarding is executed via `PATCH` with `status: 'disabled'` or `'suspended'`.
+  5. **Exact-ID Test Cleanup Strategy**:
+     - Tests in `backend/tests/accounts.test.js` track exact created UUIDs in a `Set` and clean up strictly using `DELETE FROM accounts WHERE id = ANY($1::uuid[])`. Pattern-based deletions (`LIKE`) are strictly avoided, ensuring 100% preservation of Northstar Labs seed accounts.
+- **Why It Is Needed**:
+  - Unifies the core inventory model: canonical identities, target applications, and provisioned target accounts.
+  - Enables deterministic detection of orphaned accounts and inactive user active accounts.
+  - Prevents collateral cascading deletions in child tables during automated test execution.
+- **Alternatives Considered**:
+  - *Embedded Nested Response Objects*: Proposing embedded `application: { ... }` and `identity: { ... }` inside account responses was rejected in favor of a normalized flat shape (Option A) to preserve contract uniformity across all M4 endpoints without breaking schema changes.
+- **Accepted Trade-Off**: Clients wishing to inspect full parent metadata dereference the respective `/api/v1/applications/:id` or `/api/v1/identities/:id` endpoints.
 
