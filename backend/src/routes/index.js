@@ -3,6 +3,7 @@ import swaggerUi from 'swagger-ui-express';
 import healthRoutes from '../modules/health/health.routes.js';
 import identityRoutes from '../modules/identities/identity.routes.js';
 import applicationRoutes from '../modules/applications/application.routes.js';
+import accountRoutes from '../modules/accounts/account.routes.js';
 import { openApiSpec, swaggerOptions } from '../config/swagger.js';
 
 const router = Router();
@@ -32,7 +33,7 @@ const v1Router = Router();
 // Milestone 4 — Inventory Modules
 v1Router.use('/identities', identityRoutes);
 v1Router.use('/applications', applicationRoutes);
-// v1Router.use('/accounts', accountRoutes);
+v1Router.use('/accounts', accountRoutes);
 // v1Router.use('/entitlements', entitlementRoutes);
 // v1Router.use('/risk-findings', riskRoutes);
 

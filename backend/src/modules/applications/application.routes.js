@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as applicationController from './application.controller.js';
+import * as accountController from '../accounts/account.controller.js';
 import { validate } from '../../middlewares/validate.js';
 import {
   applicationIdParamSchema,
@@ -7,6 +8,7 @@ import {
   createApplicationBodySchema,
   updateApplicationBodySchema
 } from './application.validation.js';
+import { listAccountsQuerySchema } from '../accounts/account.validation.js';
 
 const router = Router();
 
@@ -52,6 +54,13 @@ router.patch(
   requireNonEmptyBody,
   validate({ body: updateApplicationBodySchema }),
   applicationController.update
+);
+
+// GET /api/v1/applications/:applicationId/accounts - List accounts provisioned within a target application
+router.get(
+  '/:applicationId/accounts',
+  validate({ params: applicationIdParamSchema, query: listAccountsQuerySchema }),
+  accountController.getAccountsByApplication
 );
 
 export default router;

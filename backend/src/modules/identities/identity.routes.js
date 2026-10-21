@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as identityController from './identity.controller.js';
+import * as accountController from '../accounts/account.controller.js';
 import { validate } from '../../middlewares/validate.js';
 import {
   identityIdParamSchema,
@@ -7,6 +8,7 @@ import {
   createIdentityBodySchema,
   updateIdentityBodySchema
 } from './identity.validation.js';
+import { listAccountsQuerySchema } from '../accounts/account.validation.js';
 
 const router = Router();
 
@@ -52,6 +54,13 @@ router.patch(
   requireNonEmptyBody,
   validate({ body: updateIdentityBodySchema }),
   identityController.update
+);
+
+// GET /api/v1/identities/:identityId/accounts - List accounts belonging to a canonical identity
+router.get(
+  '/:identityId/accounts',
+  validate({ params: identityIdParamSchema, query: listAccountsQuerySchema }),
+  accountController.getAccountsByIdentity
 );
 
 export default router;

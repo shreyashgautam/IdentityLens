@@ -527,19 +527,273 @@ export const openApiSpec = {
     '/api/v1/accounts': {
       get: {
         summary: 'List Application Accounts',
-        description: 'Retrieves all user and service accounts across connected target applications.',
+        description: 'Retrieves all user and service accounts across connected target applications with pagination, filtering, search, and sorting.',
         tags: ['Accounts'],
         parameters: [
-          { name: 'identity_id', in: 'query', schema: { type: 'string', format: 'uuid' } },
-          { name: 'application_id', in: 'query', schema: { type: 'string', format: 'uuid' } },
-          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'disabled', 'orphaned'] } }
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1, minimum: 1 }, description: 'One-based page number' },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, minimum: 1, maximum: 100 }, description: 'Records per page' },
+          { name: 'application_id', in: 'query', schema: { type: 'string', format: 'uuid' }, description: 'Filter by target application UUID' },
+          { name: 'identity_id', in: 'query', schema: { type: 'string', format: 'uuid' }, description: 'Filter by owner identity UUID' },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'disabled', 'suspended', 'unknown'] } },
+          { name: 'is_orphan', in: 'query', schema: { type: 'boolean' }, description: 'Filter for orphan accounts (identity_id is null)' },
+          { name: 'search', in: 'query', schema: { type: 'string' }, description: 'Search across external_id, account_name, and email' },
+          { name: 'sort_by', in: 'query', schema: { type: 'string', enum: ['external_id', 'account_name', 'email', 'status', 'source', 'last_login_at', 'created_at', 'updated_at'], default: 'created_at' } },
+          { name: 'sort_order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' } }
         ],
         responses: {
           '200': {
-            description: 'List of accounts',
+            description: 'Paginated list of accounts',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/AccountCollectionResponse' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      },
+      post: {
+        summary: 'Create Application Account',
+        description: 'Registers a new target system account associated with an application.',
+        tags: ['Accounts'],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['application_id', 'external_id'],
+                properties: {
+                  application_id: { type: 'string', format: 'uuid' },
+                  external_id: { type: 'string', example: 'usr-aws-developer' },
+                  identity_id: { type: 'string', format: 'uuid', nullable: true },
+                  account_name: { type: 'string', example: 'dev-ops-account' },
+                  email: { type: 'string', format: 'email', example: 'dev@example.com' },
+                  status: { type: 'string', enum: ['active', 'disabled', 'suspended', 'unknown'], default: 'active' },
+                  source: { type: 'string', example: 'direct', default: 'direct' },
+                  last_login_at: { type: 'string', format: 'date-time', nullable: true }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          '201': {
+            description: 'Account created successfully',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AccountSingleResponse' }
+              }
+            }
+          },
+          '409': {
+            description: 'Conflict - Duplicate external_id in this application',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error - Missing required fields or invalid foreign key',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/v1/accounts/{accountId}': {
+      get: {
+        summary: 'Get Account Details',
+        description: 'Retrieves complete profile and configuration details for an account by UUID.',
+        tags: ['Accounts'],
+        parameters: [
+          { name: 'accountId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' }, description: 'Target account UUID' }
+        ],
+        responses: {
+          '200': {
+            description: 'Account record details',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AccountSingleResponse' }
+              }
+            }
+          },
+          '404': {
+            description: 'Account not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      },
+      patch: {
+        summary: 'Update Account',
+        description: 'Partially updates an existing account (including linking or unlinking canonical identity).',
+        tags: ['Accounts'],
+        parameters: [
+          { name: 'accountId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' }, description: 'Target account UUID' }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  external_id: { type: 'string' },
+                  identity_id: { type: 'string', format: 'uuid', nullable: true },
+                  account_name: { type: 'string', nullable: true },
+                  email: { type: 'string', format: 'email', nullable: true },
+                  status: { type: 'string', enum: ['active', 'disabled', 'suspended', 'unknown'] },
+                  source: { type: 'string' },
+                  last_login_at: { type: 'string', format: 'date-time', nullable: true }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Updated account record',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AccountSingleResponse' }
+              }
+            }
+          },
+          '400': {
+            description: 'Bad Request - Empty body',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '404': {
+            description: 'Account not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '409': {
+            description: 'Conflict - Duplicate external_id in application',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/v1/identities/{identityId}/accounts': {
+      get: {
+        summary: 'List Accounts for Identity',
+        description: 'Retrieves all application accounts linked to a canonical identity.',
+        tags: ['Identities', 'Accounts'],
+        parameters: [
+          { name: 'identityId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' }, description: 'Target identity UUID' },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1, minimum: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, minimum: 1, maximum: 100 } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'disabled', 'suspended', 'unknown'] } },
+          { name: 'sort_by', in: 'query', schema: { type: 'string', enum: ['external_id', 'account_name', 'email', 'status', 'created_at'], default: 'created_at' } },
+          { name: 'sort_order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' } }
+        ],
+        responses: {
+          '200': {
+            description: 'List of accounts linked to the identity',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AccountCollectionResponse' }
+              }
+            }
+          },
+          '404': {
+            description: 'Identity not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/v1/applications/{applicationId}/accounts': {
+      get: {
+        summary: 'List Accounts for Application',
+        description: 'Retrieves all accounts provisioned within a target application.',
+        tags: ['Applications', 'Accounts'],
+        parameters: [
+          { name: 'applicationId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' }, description: 'Target application UUID' },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1, minimum: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, minimum: 1, maximum: 100 } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'disabled', 'suspended', 'unknown'] } },
+          { name: 'is_orphan', in: 'query', schema: { type: 'boolean' } },
+          { name: 'sort_by', in: 'query', schema: { type: 'string', enum: ['external_id', 'account_name', 'email', 'status', 'created_at'], default: 'created_at' } },
+          { name: 'sort_order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' } }
+        ],
+        responses: {
+          '200': {
+            description: 'List of accounts provisioned in the application',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AccountCollectionResponse' }
+              }
+            }
+          },
+          '404': {
+            description: 'Application not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
               }
             }
           }
@@ -704,23 +958,58 @@ export const openApiSpec = {
           }
         }
       },
+      AccountSingleResponse: {
+        type: 'object',
+        properties: {
+          data: { $ref: '#/components/schemas/AccountItem' },
+          meta: {
+            type: 'object',
+            properties: {
+              request_id: { type: 'string', format: 'uuid' }
+            }
+          }
+        }
+      },
       AccountCollectionResponse: {
         type: 'object',
         properties: {
           data: {
             type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                id: { type: 'string', format: 'uuid' },
-                external_id: { type: 'string' },
-                account_name: { type: 'string' },
-                status: { type: 'string' },
-                identity_id: { type: 'string', format: 'uuid', nullable: true },
-                application_id: { type: 'string', format: 'uuid' }
-              }
+            items: { $ref: '#/components/schemas/AccountItem' }
+          },
+          pagination: {
+            type: 'object',
+            properties: {
+              page: { type: 'integer' },
+              limit: { type: 'integer' },
+              total: { type: 'integer' },
+              total_pages: { type: 'integer' },
+              has_next: { type: 'boolean' },
+              has_prev: { type: 'boolean' }
+            }
+          },
+          meta: {
+            type: 'object',
+            properties: {
+              request_id: { type: 'string', format: 'uuid' }
             }
           }
+        }
+      },
+      AccountItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          application_id: { type: 'string', format: 'uuid' },
+          identity_id: { type: 'string', format: 'uuid', nullable: true },
+          external_id: { type: 'string' },
+          account_name: { type: 'string', nullable: true },
+          email: { type: 'string', format: 'email', nullable: true },
+          status: { type: 'string', enum: ['active', 'disabled', 'suspended', 'unknown'] },
+          source: { type: 'string' },
+          last_login_at: { type: 'string', format: 'date-time', nullable: true },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' }
         }
       },
       ErrorEnvelope: {
