@@ -510,3 +510,49 @@ Detailed file-by-file execution flow across the newly segmented backend structur
 7. Database Layer (PostgreSQL):
    └─ Evaluates SQL against identities table and returns typed rows to pool client.
 ```
+
+---
+
+## 14. Application API Architecture & Execution Flow (Milestone 4 Part 2)
+
+```
+1. Incoming HTTP Request (e.g. POST /api/v1/applications):
+   │
+   ▼
+2. Global Middleware Stack (app.js):
+   │  ├─ requestIdMiddleware: Generates or correlates X-Request-ID (req.id).
+   │  ├─ securityHeadersMiddleware: Adds nosniff, DENY, Referrer-Policy, HSTS.
+   │  ├─ corsMiddleware: Origin verification (http://localhost:5173).
+   │  └─ express.json({ limit: '100kb' }): Parses JSON body with payload ceiling.
+   │
+   ▼
+3. Central Routing (routes/index.js -> /api/v1/applications):
+   │  └─ application.routes.js:
+   │       ├─ GET /: validate({ query: listApplicationsQuerySchema })
+   │       ├─ GET /:applicationId: validate({ params: applicationIdParamSchema })
+   │       ├─ POST /: validate({ body: createApplicationBodySchema })
+   │       └─ PATCH /:applicationId: validate({ params }) -> requireNonEmptyBody -> validate({ body: updateApplicationBodySchema })
+   │
+   ▼
+4. Controller Layer (application.controller.js):
+   │  └─ Unpacks req.validatedParams, req.validatedQuery, req.validatedBody.
+   │  └─ Invokes application.service.js methods.
+   │  └─ Formats standard envelopes via successResponse(res, data, { status, pagination }).
+   │
+   ▼
+5. Service Layer (application.service.js):
+   │  ├─ Pagination calculations: offset = (page - 1) * limit, total_pages, has_next, has_prev.
+   │  ├─ Key uniqueness guard: Checks if application key already exists in database (throws 409 Conflict).
+   │  └─ Target existence check: Ensures applicationId exists on GET /:id and PATCH /:id (throws 404).
+   │
+   ▼
+6. Repository Layer (application.repository.js):
+   │  ├─ Strictly parameterized SQL ($1, $2, ...) prevents SQL injection.
+   │  ├─ Allowlisted sorting (ALLOWED_APPLICATION_SORT_FIELDS) with secondary stable tie-breaker (id ASC).
+   │  ├─ Case-insensitive ILIKE search across name, key, description.
+   │  └─ Explicitly touches updated_at = NOW() during PATCH updates.
+   │
+   ▼
+7. Database Layer (PostgreSQL):
+   └─ Evaluates SQL against applications table and returns typed rows to pool client.
+```

@@ -318,3 +318,24 @@ This document logs all key architectural, technical, library, and design decisio
   - *Hard Deletion with Cascase*: Rejected because deleting historical identities destroys audit trails and invalidates past risk findings.
   - *In-memory Graph Cycle Traversal*: Rejected because fetching entire identity graphs into application memory creates N+1 database roundtrips and scales poorly. PostgreSQL Recursive CTEs perform cycle detection in a single database roundtrip.
 - **Accepted Trade-Off**: Hard deletion is deferred until an organizational retention, data-masking, and tombstoning policy is documented.
+
+---
+
+### Decision 20: Application Inventory API Architecture, Key Uniqueness, and Cascading Deletion Prevention
+
+- **Decision**:
+  1. Implement target application endpoints under `/api/v1/applications` strictly adhering to `docs/api-contract.md` Section 14.2:
+     - `GET /api/v1/applications`: Collection retrieval with Zod-validated pagination (`page >= 1`, `limit <= 100`), exact filters (`status`, `auth_type`), multi-field case-insensitive search (`name`, `key`, `description`), and allowlisted sorting (`name`, `key`, `status`, `auth_type`, `created_at`, `updated_at`) with stable secondary tie-breaker (`id ASC`).
+     - `GET /api/v1/applications/:applicationId`: Single application lookup by UUID returning 200 or 404 standard envelopes.
+     - `POST /api/v1/applications`: Creates target application with 201 Created and Zod `.strict()` schema rejecting forbidden/unknown fields.
+     - `PATCH /api/v1/applications/:applicationId`: Partial update requiring non-empty body (rejects `{}` with 400 Bad Request) and touching `updated_at = NOW()`.
+  2. **Exclusion of Hard Deletion (`DELETE`)**: Deliberately exclude `DELETE /applications/:id`. In PostgreSQL schema, `accounts` and `entitlements` both reference `applications(id) ON DELETE CASCADE`. Hard deletion would catastrophically delete all child accounts, entitlements, and many-to-many entitlement assignments. Applications are retired via `PATCH` with `status: 'inactive'` or `status: 'deprecated'`.
+  3. **Unique Key Normalization & Collision Handling**: Application keys must be unique strings matching `/^[a-z0-9_-]+$/`. Pre-validation checks and database unique constraints return `409 Conflict` (`code: 'RESOURCE_CONFLICT'`) if an application key collision is detected on `POST` or `PATCH`.
+  4. **Test Fixture Isolation**: All automated tests in `backend/tests/applications.test.js` strictly use keys prefixed with `test_` and clean up via `DELETE FROM applications WHERE key LIKE 'test_%'`, leaving all 5 Northstar Labs seed applications intact.
+- **Why It Is Needed**:
+  - Establishes durable application namespaces required for M4 Part 3 (Accounts) and M5 (Entitlements).
+  - Protects against accidental cascading deletion of organizational account inventories.
+- **Alternatives Considered**:
+  - *Hard Deletion with Unlinking*: Rejected because accounts and entitlements intrinsically belong to a specific application and cannot exist without a parent application ID (`application_id UUID NOT NULL`).
+- **Accepted Trade-Off**: Application retirement must be performed via status deactivation rather than permanent deletion.
+
