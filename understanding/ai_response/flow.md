@@ -463,3 +463,50 @@ Detailed file-by-file execution flow across the newly segmented backend structur
    │       └─ If healthy: returns HTTP 200 { status: 'ok', ready: true, checks: { database: 'connected' }, database_latency_ms }.
    │       └─ If down: returns HTTP 503 { status: 'error', ready: false, checks: { database: 'disconnected' } }.
 ```
+
+---
+
+## 13. Identity API Architecture & Execution Flow (Milestone 4 Part 1)
+
+```
+1. Incoming HTTP Request:
+   │
+   ▼
+2. Global Middleware Stack (app.js):
+   │  ├─ requestIdMiddleware: Generates or preserves X-Request-ID (req.id).
+   │  ├─ securityHeadersMiddleware: Adds nosniff, DENY, Referrer-Policy, HSTS.
+   │  ├─ corsMiddleware: Origin verification (http://localhost:5173).
+   │  └─ express.json({ limit: '100kb' }): Parses JSON body with payload ceiling.
+   │
+   ▼
+3. Central Routing (routes/index.js -> /api/v1/identities):
+   │  └─ identity.routes.js:
+   │       ├─ GET /: validate({ query: listIdentitiesQuerySchema })
+   │       ├─ GET /:identityId: validate({ params: identityIdParamSchema })
+   │       ├─ POST /: validate({ body: createIdentityBodySchema })
+   │       └─ PATCH /:identityId: validate({ params }) -> requireNonEmptyBody -> validate({ body: updateIdentityBodySchema })
+   │
+   ▼
+4. Controller Layer (identity.controller.js):
+   │  └─ Unpacks req.validatedParams, req.validatedQuery, req.validatedBody.
+   │  └─ Invokes identity.service.js methods.
+   │  └─ Formats standard envelopes via successResponse(res, data, { pagination }).
+   │
+   ▼
+5. Service Layer (identity.service.js):
+   │  ├─ Pagination calculations: offset = (page - 1) * limit, total_pages, has_next, has_prev.
+   │  ├─ Owner validation: Ensures owner_id exists in identities table (throws 422 if not found).
+   │  ├─ Direct self-ownership prevention: Rejects owner_id === identityId (throws 422).
+   │  └─ Multi-hop cycle prevention: Executes recursive CTE to check ancestry (throws 409 Conflict if cycle detected).
+   │
+   ▼
+6. Repository Layer (identity.repository.js):
+   │  ├─ Strictly parameterized SQL ($1, $2, ...) prevents SQL injection.
+   │  ├─ Allowlisted sorting (ALLOWED_SORT_FIELDS) with secondary stable tie-breaker (id ASC).
+   │  ├─ Case-insensitive ILIKE search across display_name, email, title, department.
+   │  └─ Explicitly touches updated_at = NOW() during PATCH updates.
+   │
+   ▼
+7. Database Layer (PostgreSQL):
+   └─ Evaluates SQL against identities table and returns typed rows to pool client.
+```

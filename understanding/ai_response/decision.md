@@ -296,3 +296,25 @@ This document logs all key architectural, technical, library, and design decisio
   - *Hardcoded SQL dump (`seed.sql`)*: Fragile to execute cross-platform and lacks programmatic safety assertions against `NODE_ENV`.
   - *Randomly generated Faker UUIDs*: Creates duplicate records on every run, destroys relational consistency, and makes manual `curl` or `psql` verification unpredictable.
 - **Accepted Trade-Off**: Maintaining deterministic seed fixtures in JavaScript requires upfront schema mapping, but provides rock-solid, repeatable test data across all development environments.
+
+---
+
+### Decision 19: Identity API Architecture, Ownership Hierarchy Integrity, and Deletion Policy
+
+- **Decision**:
+  1. Implement canonical identity endpoints under `/api/v1/identities` strictly adhering to the 4 operations approved in `docs/api-contract.md` Section 14.1:
+     - `GET /api/v1/identities`: Collection retrieval with Zod-validated pagination (`page >= 1`, `limit <= 100`), exact filters (`status`, `identity_type`, `department`), case-insensitive multi-column search (`display_name`, `email`, `title`, `department`), and allowlisted sorting with stable secondary tie-breaker (`id ASC`).
+     - `GET /api/v1/identities/:identityId`: Single resource lookup returning 200 or 404 standard envelopes.
+     - `POST /api/v1/identities`: Creates canonical identity with 201 Created and Zod `.strict()` schema rejecting forbidden/unknown fields.
+     - `PATCH /api/v1/identities/:identityId`: Partial update requiring non-empty body (rejects `{}` with 400 Bad Request) and touching `updated_at = NOW()`.
+  2. **Exclusion of Hard Deletion (`DELETE`)**: Deliberately exclude `DELETE /identities/:id` from initial scope. In accordance with `docs/data-model.md` Section 10, identities represent immutable audit anchors; hard deletion cascades risk findings (destroying security evidence) and orphans accounts (`ON DELETE SET NULL`). Deactivation is achieved via `PATCH` with `status: 'inactive'`.
+  3. **Multi-Hop Ownership Cycle Detection**: Enforce ownership hierarchy integrity at the service layer using a recursive Common Table Expression (CTE) query bounded to 25 hops (`depth < 25`). If assigning candidate owner $B$ to identity $A$ finds $A$ in the ancestry chain of $B$, the update is rejected with `409 Conflict` (`RESOURCE_CONFLICT` / `OWNERSHIP_CYCLE`).
+  4. **Strict Schema Strictness & Isolation**: Use Zod `.strict()` to reject arbitrary property injection and isolate test records using `@test.identitylens.local` domains, ensuring 100% preservation of Northstar Labs seed data.
+- **Why It Is Needed**:
+  - Establishes a hardened, reusable module pattern (`.routes.js`, `.controller.js`, `.service.js`, `.repository.js`, `.validation.js`) for subsequent inventory modules (Applications, Accounts).
+  - Eliminates SQL injection via strict parameterized queries (`$1, $2`) and identifier allowlists.
+  - Prevents circular management graph anomalies.
+- **Alternatives Considered**:
+  - *Hard Deletion with Cascase*: Rejected because deleting historical identities destroys audit trails and invalidates past risk findings.
+  - *In-memory Graph Cycle Traversal*: Rejected because fetching entire identity graphs into application memory creates N+1 database roundtrips and scales poorly. PostgreSQL Recursive CTEs perform cycle detection in a single database roundtrip.
+- **Accepted Trade-Off**: Hard deletion is deferred until an organizational retention, data-masking, and tombstoning policy is documented.
