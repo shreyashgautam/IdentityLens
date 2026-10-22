@@ -806,13 +806,40 @@ Support documented pagination, filtering, sorting, and search where applicable.
 
 ### 14.4 Entitlements
 
-- `GET /entitlements`
-- `GET /entitlements/:id`
-- `POST /entitlements`
-- `PATCH /entitlements/:id`
-- `DELETE /accounts/:accountId/entitlements/:entitlementId`
+Entitlement inventory definitions and account-entitlement relationship assignments:
 
-The final endpoint removes the assignment relationship, not the entitlement definition.
+- `GET /api/v1/entitlements`
+  - Query parameters: `page` (default 1), `limit` (default 20, max 100), `application_id` (UUID), `type` (`role`, `group`, `permission`, `license`), `is_privileged` (boolean), `search` (case-insensitive ILIKE against name and description), `sort_by` (`name`, `type`, `created_at`, `updated_at`), `sort_order` (`asc`, `desc`, default `asc`).
+  - Response: `200 OK` with paginated collection envelope (`data`, `pagination`, `meta`).
+
+- `GET /api/v1/entitlements/:id`
+  - Path parameter: `id` (UUID).
+  - Response: `200 OK` with single entity envelope (`data`, `meta`), `404 Not Found` if nonexistent, `422 Unprocessable Entity` if malformed UUID.
+
+- `POST /api/v1/entitlements`
+  - Request body: `application_id` (UUID), `name` (string, max 255), `type` (enum), `description` (optional string), `is_privileged` (optional boolean, default `false`). Unknown fields rejected.
+  - Response: `201 Created` with single entity envelope, `409 Conflict` if `(application_id, name)` already exists, `422 Unprocessable Entity` on validation failure.
+
+- `PATCH /api/v1/entitlements/:id`
+  - Path parameter: `id` (UUID).
+  - Request body: partial update (`name`, `type`, `description`, `is_privileged`). Unknown fields rejected. Empty body rejected with `400 Bad Request`.
+  - Response: `200 OK` with updated entity envelope, `404 Not Found` if nonexistent, `409 Conflict` if new name clashes with existing name in the same application, `422 Unprocessable Entity` on validation failure.
+
+- `GET /api/v1/accounts/:accountId/entitlements`
+  - Path parameter: `accountId` (UUID).
+  - Query parameters: `page`, `limit`, `type`, `is_privileged`, `sort_by` (`name`, `type`, `assigned_at`), `sort_order`.
+  - Response: `200 OK` with paginated list of entitlements assigned to the account (including `assigned_at` and `assigned_by`), `404 Not Found` if account does not exist.
+
+- `POST /api/v1/accounts/:accountId/entitlements`
+  - Path parameter: `accountId` (UUID).
+  - Request body: `entitlement_id` (UUID), `assigned_by` (optional string, max 255).
+  - Transactional consistency: executed in an ACID transaction with row-level locking (`FOR SHARE`) protecting both account and entitlement. Cross-application assignment (`account.application_id !== entitlement.application_id`) is strictly rejected with `422 Unprocessable Entity`. Duplicate assignment is mapped to `409 Conflict`.
+  - Response: `201 Created` with assignment envelope (`account_id`, `entitlement_id`, `assigned_at`, `assigned_by`).
+
+- `DELETE /api/v1/accounts/:accountId/entitlements/:entitlementId`
+  - Path parameters: `accountId` (UUID), `entitlementId` (UUID).
+  - Purpose: Removes the assignment relationship between the account and entitlement in the join table `account_entitlements`. It does NOT delete the account or the entitlement definition.
+  - Response: `204 No Content` on successful unassignment, `404 Not Found` if the assignment relationship does not exist, `422 Unprocessable Entity` on invalid UUID parameters.
 
 ### 14.5 Risk findings
 

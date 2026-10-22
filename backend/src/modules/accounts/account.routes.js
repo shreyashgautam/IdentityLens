@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as accountController from './account.controller.js';
+import * as entitlementController from '../entitlements/entitlement.controller.js';
 import { validate } from '../../middlewares/validate.js';
 import {
   accountIdParamSchema,
@@ -7,6 +8,11 @@ import {
   createAccountBodySchema,
   updateAccountBodySchema
 } from './account.validation.js';
+import {
+  listAccountEntitlementsQuerySchema,
+  assignEntitlementBodySchema,
+  accountEntitlementParamSchema
+} from '../entitlements/entitlement.validation.js';
 
 const router = Router();
 
@@ -52,6 +58,29 @@ router.patch(
   requireNonEmptyBody,
   validate({ body: updateAccountBodySchema }),
   accountController.update
+);
+
+// Milestone 5 — Account Entitlement Assignment Routes (docs/api-contract.md Section 14.3 & 14.4)
+
+// GET /api/v1/accounts/:accountId/entitlements - List entitlements assigned to an account
+router.get(
+  '/:accountId/entitlements',
+  validate({ params: accountIdParamSchema, query: listAccountEntitlementsQuerySchema }),
+  entitlementController.listForAccount
+);
+
+// POST /api/v1/accounts/:accountId/entitlements - Assign an entitlement to an account
+router.post(
+  '/:accountId/entitlements',
+  validate({ params: accountIdParamSchema, body: assignEntitlementBodySchema }),
+  entitlementController.assignToAccount
+);
+
+// DELETE /api/v1/accounts/:accountId/entitlements/:entitlementId - Remove an entitlement assignment
+router.delete(
+  '/:accountId/entitlements/:entitlementId',
+  validate({ params: accountEntitlementParamSchema }),
+  entitlementController.removeFromAccount
 );
 
 export default router;

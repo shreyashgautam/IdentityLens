@@ -4,6 +4,7 @@ import healthRoutes from '../modules/health/health.routes.js';
 import identityRoutes from '../modules/identities/identity.routes.js';
 import applicationRoutes from '../modules/applications/application.routes.js';
 import accountRoutes from '../modules/accounts/account.routes.js';
+import entitlementRoutes from '../modules/entitlements/entitlement.routes.js';
 import { openApiSpec, swaggerOptions } from '../config/swagger.js';
 
 const router = Router();
@@ -34,7 +35,8 @@ const v1Router = Router();
 v1Router.use('/identities', identityRoutes);
 v1Router.use('/applications', applicationRoutes);
 v1Router.use('/accounts', accountRoutes);
-// v1Router.use('/entitlements', entitlementRoutes);
+// Milestone 5 — Entitlements & Access Relationships
+v1Router.use('/entitlements', entitlementRoutes);
 // v1Router.use('/risk-findings', riskRoutes);
 
 v1Router.get('/', (req, res) => {

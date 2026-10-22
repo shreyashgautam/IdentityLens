@@ -803,15 +803,291 @@ export const openApiSpec = {
     '/api/v1/entitlements': {
       get: {
         summary: 'List Entitlements',
-        description: 'Retrieves all cataloged roles, groups, and permissions.',
+        description: 'Retrieves cataloged roles, groups, permissions, and licenses with pagination, filtering, search, and sorting.',
         tags: ['Entitlements'],
         parameters: [
-          { name: 'application_id', in: 'query', schema: { type: 'string', format: 'uuid' } },
-          { name: 'is_privileged', in: 'query', schema: { type: 'boolean' } }
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1, minimum: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, minimum: 1, maximum: 100 } },
+          { name: 'application_id', in: 'query', schema: { type: 'string', format: 'uuid' }, description: 'Filter by target application' },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['role', 'group', 'permission', 'license'] } },
+          { name: 'is_privileged', in: 'query', schema: { type: 'boolean' } },
+          { name: 'search', in: 'query', schema: { type: 'string' }, description: 'Case-insensitive search matching name or description' },
+          { name: 'sort_by', in: 'query', schema: { type: 'string', enum: ['name', 'type', 'created_at', 'updated_at'], default: 'name' } },
+          { name: 'sort_order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'asc' } }
         ],
         responses: {
           '200': {
-            description: 'List of entitlements'
+            description: 'List of entitlement definitions',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/EntitlementCollectionResponse' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      },
+      post: {
+        summary: 'Create Entitlement Definition',
+        description: 'Creates a new entitlement definition within an application.',
+        tags: ['Entitlements'],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CreateEntitlementInput' }
+            }
+          }
+        },
+        responses: {
+          '201': {
+            description: 'Entitlement definition created successfully',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/EntitlementSingleResponse' }
+              }
+            }
+          },
+          '409': {
+            description: 'Conflict - Duplicate entitlement name in the same application',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/v1/entitlements/{entitlementId}': {
+      get: {
+        summary: 'Retrieve Entitlement Definition by ID',
+        description: 'Retrieves single entitlement metadata by UUID.',
+        tags: ['Entitlements'],
+        parameters: [
+          { name: 'entitlementId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+        ],
+        responses: {
+          '200': {
+            description: 'Entitlement details',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/EntitlementSingleResponse' }
+              }
+            }
+          },
+          '404': {
+            description: 'Entitlement not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      },
+      patch: {
+        summary: 'Partially Update Entitlement Definition',
+        description: 'Updates permitted entitlement definition fields and refreshes updated_at timestamp.',
+        tags: ['Entitlements'],
+        parameters: [
+          { name: 'entitlementId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/UpdateEntitlementInput' }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Entitlement updated successfully',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/EntitlementSingleResponse' }
+              }
+            }
+          },
+          '400': {
+            description: 'Bad Request - Empty update payload',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '404': {
+            description: 'Entitlement not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '409': {
+            description: 'Conflict - Duplicate entitlement name in the same application',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/v1/accounts/{accountId}/entitlements': {
+      get: {
+        summary: 'List Entitlements Assigned to Account',
+        description: 'Retrieves all entitlements currently assigned to a target account.',
+        tags: ['Accounts', 'Entitlements'],
+        parameters: [
+          { name: 'accountId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1, minimum: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, minimum: 1, maximum: 100 } },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['role', 'group', 'permission', 'license'] } },
+          { name: 'is_privileged', in: 'query', schema: { type: 'boolean' } },
+          { name: 'sort_by', in: 'query', schema: { type: 'string', enum: ['name', 'type', 'assigned_at'], default: 'assigned_at' } },
+          { name: 'sort_order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' } }
+        ],
+        responses: {
+          '200': {
+            description: 'List of account entitlements',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AccountEntitlementsListResponse' }
+              }
+            }
+          },
+          '404': {
+            description: 'Account not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      },
+      post: {
+        summary: 'Assign Entitlement to Account',
+        description: 'Assigns an entitlement to an account within an ACID transaction with row-level locks and application boundary enforcement.',
+        tags: ['Accounts', 'Entitlements'],
+        parameters: [
+          { name: 'accountId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/AssignEntitlementInput' }
+            }
+          }
+        },
+        responses: {
+          '201': {
+            description: 'Entitlement assigned successfully',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AccountEntitlementAssignmentResponse' }
+              }
+            }
+          },
+          '404': {
+            description: 'Account not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '409': {
+            description: 'Conflict - Entitlement already assigned to this account',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error - Invalid payload, entitlement not found, or cross-application mismatch',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/v1/accounts/{accountId}/entitlements/{entitlementId}': {
+      delete: {
+        summary: 'Remove Entitlement Assignment from Account',
+        description: 'Removes the assignment relationship between an account and entitlement. Does not delete definitions.',
+        tags: ['Accounts', 'Entitlements'],
+        parameters: [
+          { name: 'accountId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'entitlementId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+        ],
+        responses: {
+          '204': {
+            description: 'Entitlement unassigned successfully (No Content)'
+          },
+          '404': {
+            description: 'Assignment relationship not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
+          },
+          '422': {
+            description: 'Validation Error - Malformed UUID parameter',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              }
+            }
           }
         }
       }
@@ -1010,6 +1286,144 @@ export const openApiSpec = {
           last_login_at: { type: 'string', format: 'date-time', nullable: true },
           created_at: { type: 'string', format: 'date-time' },
           updated_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      EntitlementItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          application_id: { type: 'string', format: 'uuid' },
+          name: { type: 'string' },
+          type: { type: 'string', enum: ['role', 'group', 'permission', 'license'] },
+          description: { type: 'string', nullable: true },
+          is_privileged: { type: 'boolean' },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      EntitlementSingleResponse: {
+        type: 'object',
+        properties: {
+          data: { $ref: '#/components/schemas/EntitlementItem' },
+          meta: {
+            type: 'object',
+            properties: {
+              request_id: { type: 'string', format: 'uuid' }
+            }
+          }
+        }
+      },
+      EntitlementCollectionResponse: {
+        type: 'object',
+        properties: {
+          data: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/EntitlementItem' }
+          },
+          pagination: {
+            type: 'object',
+            properties: {
+              page: { type: 'integer' },
+              limit: { type: 'integer' },
+              total: { type: 'integer' },
+              total_pages: { type: 'integer' },
+              has_next: { type: 'boolean' },
+              has_prev: { type: 'boolean' }
+            }
+          },
+          meta: {
+            type: 'object',
+            properties: {
+              request_id: { type: 'string', format: 'uuid' }
+            }
+          }
+        }
+      },
+      CreateEntitlementInput: {
+        type: 'object',
+        required: ['application_id', 'name', 'type'],
+        properties: {
+          application_id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', maxLength: 255 },
+          type: { type: 'string', enum: ['role', 'group', 'permission', 'license'] },
+          description: { type: 'string', nullable: true },
+          is_privileged: { type: 'boolean', default: false }
+        }
+      },
+      UpdateEntitlementInput: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', maxLength: 255 },
+          type: { type: 'string', enum: ['role', 'group', 'permission', 'license'] },
+          description: { type: 'string', nullable: true },
+          is_privileged: { type: 'boolean' }
+        }
+      },
+      AccountAssignedEntitlementItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          application_id: { type: 'string', format: 'uuid' },
+          name: { type: 'string' },
+          type: { type: 'string', enum: ['role', 'group', 'permission', 'license'] },
+          description: { type: 'string', nullable: true },
+          is_privileged: { type: 'boolean' },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
+          assigned_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      AccountEntitlementsListResponse: {
+        type: 'object',
+        properties: {
+          data: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/AccountAssignedEntitlementItem' }
+          },
+          pagination: {
+            type: 'object',
+            properties: {
+              page: { type: 'integer' },
+              limit: { type: 'integer' },
+              total: { type: 'integer' },
+              total_pages: { type: 'integer' },
+              has_next: { type: 'boolean' },
+              has_prev: { type: 'boolean' }
+            }
+          },
+          meta: {
+            type: 'object',
+            properties: {
+              request_id: { type: 'string', format: 'uuid' }
+            }
+          }
+        }
+      },
+      AssignEntitlementInput: {
+        type: 'object',
+        required: ['entitlement_id'],
+        properties: {
+          entitlement_id: { type: 'string', format: 'uuid' }
+        }
+      },
+      AccountEntitlementAssignmentItem: {
+        type: 'object',
+        properties: {
+          account_id: { type: 'string', format: 'uuid' },
+          entitlement_id: { type: 'string', format: 'uuid' },
+          assigned_at: { type: 'string', format: 'date-time' }
+        }
+      },
+      AccountEntitlementAssignmentResponse: {
+        type: 'object',
+        properties: {
+          data: { $ref: '#/components/schemas/AccountEntitlementAssignmentItem' },
+          meta: {
+            type: 'object',
+            properties: {
+              request_id: { type: 'string', format: 'uuid' }
+            }
+          }
         }
       },
       ErrorEnvelope: {

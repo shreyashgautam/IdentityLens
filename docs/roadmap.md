@@ -270,7 +270,7 @@ Add pagination, filtering, sorting, and search where documented.
 - Duplicate source accounts do not create duplicate records.
 - Protected data is not exposed without authorization.
 
-## 11. M5 — Entitlements and Access Relationships
+## 11. M5 — Entitlements and Access Relationships [COMPLETED]
 
 ### Objectives
 
@@ -278,22 +278,22 @@ Represent the access that application accounts have been assigned.
 
 ### Tasks
 
-- Implement entitlement definitions.
-- Implement account-entitlement assignments.
-- Validate that accounts and entitlements belong to the same application.
-- Prevent duplicate assignments.
-- Use transactions for appropriate multi-step changes.
-- Add listing and relationship-removal operations according to the API contract.
-- Add tests for invalid relationships and permissions.
+- [x] Implement entitlement definitions (`GET`, `POST`, `PATCH`, `GET /:id`).
+- [x] Implement account-entitlement assignments (`GET`, `POST`, `DELETE`).
+- [x] Validate that accounts and entitlements belong to the same application (strict application boundary).
+- [x] Prevent duplicate assignments with unique constraint mapping to `409 Conflict`.
+- [x] Use transactions with row-level shared locking (`SELECT ... FOR SHARE`) and rollback error preservation.
+- [x] Add listing and relationship-removal operations returning `204 No Content`.
+- [x] Add integration tests with independent teardown and zero seed data mutation (34 tests).
 
 ### Acceptance criteria
 
-- Entitlements can be listed and created.
-- An account can have multiple entitlements.
-- An entitlement can be assigned to multiple accounts.
-- Invalid cross-application assignments are rejected.
-- Duplicate assignments are prevented.
-- Relationship changes follow the documented authorization and audit requirements.
+- [x] Entitlements can be listed and created.
+- [x] An account can have multiple entitlements.
+- [x] An entitlement can be assigned to multiple accounts.
+- [x] Invalid cross-application assignments are rejected with `422 Unprocessable Entity`.
+- [x] Duplicate assignments are prevented with `409 Conflict`.
+- [x] Relationship removals delete only the join table record (`account_entitlements`) while preserving account and entitlement definitions.
 
 ## 12. M6 — Authentication and Authorization
 

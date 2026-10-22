@@ -619,11 +619,93 @@ Routes -> Controllers -> Services -> Repositories -> PostgreSQL
    │  ├─ Strictly parameterized SQL ($1, $2, ...) prevents SQL injection.
    │  ├─ Dynamic WHERE construction for application_id, identity_id, status, is_orphan (IS NULL / IS NOT NULL).
    │  ├─ Case-insensitive multi-column ILIKE search (external_id, account_name, email).
-   │  ├─ Sort allowlist enforcement with stable secondary tie-breaker (id ASC).
-   │  └─ Explicitly touches updated_at = NOW() during PATCH updates.
+---
+
+## 16. Entitlement Inventory & Transactional Assignment Execution Flow (Milestone 5)
+
+The Entitlement module manages the access catalog (roles, groups, permissions, licenses) and transactional assignments to target accounts. It enforces the strict dependency direction:
+
+```
+Routes -> Controllers -> Services -> Repositories -> PostgreSQL
+```
+
+### Complete End-to-End Entitlement & Assignment Execution Trace
+
+```
+1. Client HTTP Request:
+   │  GET /api/v1/entitlements?type=role&is_privileged=true
+   │  POST /api/v1/entitlements
+   │  PATCH /api/v1/entitlements/:entitlementId
+   │  GET /api/v1/accounts/:accountId/entitlements
+   │  POST /api/v1/accounts/:accountId/entitlements
+   │  DELETE /api/v1/accounts/:accountId/entitlements/:entitlementId
+   │
+   ▼
+2. Global Middleware Stack (app.js):
+   │  ├─ requestIdMiddleware: Generates or correlates X-Request-ID (req.id).
+   │  ├─ securityHeadersMiddleware: Adds nosniff, DENY, Referrer-Policy, HSTS.
+   │  ├─ corsMiddleware: Origin verification (http://localhost:5173).
+   │  └─ express.json({ limit: '100kb' }): Parses JSON body with payload ceiling.
+   │
+   ▼
+3. Central Routing:
+   │  ├─ routes/index.js -> /api/v1/entitlements (entitlement.routes.js):
+   │  │    ├─ GET /: validate({ query: listEntitlementsQuerySchema })
+   │  │    ├─ GET /:entitlementId: validate({ params: entitlementIdParamSchema })
+   │  │    ├─ POST /: validate({ body: createEntitlementBodySchema })
+   │  │    └─ PATCH /:entitlementId: validate({ params }) -> requireNonEmptyBody -> validate({ body: updateEntitlementBodySchema })
+   │  └─ account.routes.js (account entitlement sub-routes):
+   │       ├─ GET /:accountId/entitlements: validate({ params, query }) -> entitlementController.listForAccount
+   │       ├─ POST /:accountId/entitlements: validate({ params, body }) -> entitlementController.assignToAccount
+   │       └─ DELETE /:accountId/entitlements/:entitlementId: validate({ params }) -> entitlementController.removeFromAccount
+   │
+   ▼
+4. Controller Layer (entitlement.controller.js):
+   │  └─ Unpacks req.validatedParams, req.validatedQuery, req.validatedBody.
+   │  └─ Delegates to entitlement.service.js methods.
+   │  └─ Formats standard envelopes: successResponse(res, data) or res.status(204).send() for deletions.
+   │
+   ▼
+5. Service Layer (entitlement.service.js):
+   │  ├─ Entitlement Definitions CRUD:
+   │  │    ├─ listEntitlements: Pagination, allowlisted sorting, type/privilege filtering, case-insensitive ILIKE search.
+   │  │    ├─ getEntitlementById: Verifies existence, throws 404 ENTITLEMENT_NOT_FOUND if missing.
+   │  │    ├─ createEntitlement: Validates application existence, checks (application_id, name) uniqueness (throws 409).
+   │  │    └─ updateEntitlement: Verifies existence, validates name collisions on rename, touches updated_at = NOW().
+   │  │
+   │  ├─ Account Entitlements Listing:
+   │  │    └─ listAccountEntitlements: Verifies accountExists(accountId) (throws 404 ACCOUNT_NOT_FOUND), returns joined rows.
+   │  │
+   │  ├─ Transactional Assignment (assignEntitlementToAccount):
+   │  │    ├─ Acquires dedicated pool client and opens transaction: await client.query('BEGIN').
+   │  │    ├─ Row-level lock on Account: SELECT ... FROM accounts WHERE id = $1 FOR SHARE.
+   │  │    │  └─ Throws 404 ACCOUNT_NOT_FOUND if account does not exist.
+   │  │    ├─ Row-level lock on Entitlement: SELECT ... FROM entitlements WHERE id = $1 FOR SHARE.
+   │  │    │  └─ Throws 422 VALIDATION_ERROR if entitlement does not exist.
+   │  │    ├─ Application Boundary Check: account.application_id === entitlement.application_id.
+   │  │    │  └─ Throws 422 VALIDATION_ERROR if application mismatch detected.
+   │  │    ├─ Insert into join table: INSERT INTO account_entitlements (account_id, entitlement_id, assigned_at) VALUES (...).
+   │  │    ├─ Commits transaction: await client.query('COMMIT').
+   │  │    └─ Safe Rollback & Error Preservation:
+   │  │       ├─ In catch (originalError), attempts client.query('ROLLBACK') in isolated try/catch.
+   │  │       ├─ Rollback errors are logged but never mask originalError.
+   │  │       ├─ Maps PostgreSQL code 23505 (duplicate key) to 409 RESOURCE_CONFLICT.
+   │  │       └─ Releases pool client in finally block.
+   │  │
+   │  └─ Assignment Removal (removeEntitlementFromAccount):
+   │       ├─ Deletes from join table: DELETE FROM account_entitlements WHERE account_id = $1 AND entitlement_id = $2.
+   │       └─ Throws 404 ASSIGNMENT_NOT_FOUND if rowCount === 0.
+   │
+   ▼
+6. Repository Layer (entitlement.repository.js):
+   │  ├─ Strictly parameterized SQL ($1, $2, ...) prevents SQL injection.
+   │  ├─ Dynamic SQL WHERE construction for application_id, type, is_privileged, search.
+   │  ├─ Sort allowlists (ALLOWED_ENTITLEMENT_SORT_FIELDS) with secondary tie-breaker (id ASC).
+   │  └─ Join queries linking account_entitlements with entitlements table.
    │
    ▼
 7. Database Layer (PostgreSQL):
-   └─ Evaluates SQL against accounts table and returns typed rows to pool client.
+   └─ Evaluates SQL against entitlements and account_entitlements tables and returns typed rows to pool client.
 ```
+
 

@@ -362,5 +362,38 @@ This document logs all key architectural, technical, library, and design decisio
   - Prevents collateral cascading deletions in child tables during automated test execution.
 - **Alternatives Considered**:
   - *Embedded Nested Response Objects*: Proposing embedded `application: { ... }` and `identity: { ... }` inside account responses was rejected in favor of a normalized flat shape (Option A) to preserve contract uniformity across all M4 endpoints without breaking schema changes.
-- **Accepted Trade-Off**: Clients wishing to inspect full parent metadata dereference the respective `/api/v1/applications/:id` or `/api/v1/identities/:id` endpoints.
+---
+
+### Decision 22: Entitlement APIs, ACID Transactional Assignments with Row-Level Shared Locking, Error Preservation, and Independent Teardown Guarantees
+
+- **Decision**:
+  1. **Implement the Seven Approved M5 Endpoints**:
+     - `GET /api/v1/entitlements`: Collection retrieval with Zod-validated pagination (`page >= 1`, `limit <= 100`), exact filters (`application_id`, `type`, `is_privileged`), multi-column case-insensitive ILIKE search (`name`, `description`), and allowlisted sorting (`name`, `type`, `created_at`, `updated_at`) with stable secondary sort (`id ASC`).
+     - `GET /api/v1/entitlements/:entitlementId`: Single entitlement lookup returning 200 with metadata envelope or 404 `ENTITLEMENT_NOT_FOUND`.
+     - `POST /api/v1/entitlements`: Entitlement definition creation verifying `application_id`, enforcing `(application_id, name)` uniqueness, rejecting forbidden fields with Zod `.strict()`, and returning 201 Created.
+     - `PATCH /api/v1/entitlements/:entitlementId`: Partial update requiring a non-empty JSON body (rejecting `{}` with 400 Bad Request), enforcing `(application_id, name)` uniqueness on rename, and touching `updated_at = NOW()`.
+     - `GET /api/v1/accounts/:accountId/entitlements`: List entitlements assigned to a target account, validating parent account existence (returning 404 `ACCOUNT_NOT_FOUND` if missing), with filtering (`type`, `is_privileged`) and pagination.
+     - `POST /api/v1/accounts/:accountId/entitlements`: Assign an entitlement to an account within an ACID transaction.
+     - `DELETE /api/v1/accounts/:accountId/entitlements/:entitlementId`: Remove assignment from join table `account_entitlements`, returning `204 No Content` on success and `404 ASSIGNMENT_NOT_FOUND` if the assignment relationship does not exist.
+  2. **ACID Transaction Handling & Concurrency Safeguards**:
+     - `POST /api/v1/accounts/:accountId/entitlements` acquires a dedicated pool client and opens an explicit transaction (`BEGIN`).
+     - **Row-Level Shared Locks (`SELECT ... FOR SHARE`)**: Both the account and entitlement records are queried with `FOR SHARE` locks to ensure concurrent transactions cannot alter application ownership or delete records while the application boundary rule (`account.application_id === entitlement.application_id`) is validated.
+     - **Rollback Error Preservation**: In the `catch (originalError)` block, `ROLLBACK` is executed inside a nested `try/catch` block. Any failure during rollback is logged to `stderr` and never allowed to mask or overwrite the original exception.
+     - **Constraint Mapping**: PostgreSQL unique violation (`code: '23505'`) on `account_entitlements` composite primary key `(account_id, entitlement_id)` is caught and mapped to `409 Conflict` (`RESOURCE_CONFLICT`).
+  3. **Strict Scope Control & Exclusions**:
+     - Hard deletion of entitlement definitions (`DELETE /entitlements/:id`) is strictly excluded; entitlement definitions are permanent audit anchors for historic access trails.
+     - Unapproved nested route `GET /applications/:applicationId/entitlements` is strictly excluded.
+     - No schema migrations: Existing `entitlements` and `account_entitlements` tables are 100% sufficient.
+  4. **Independent Test Teardown Guarantee**:
+     - Integration tests in `backend/tests/entitlements.test.js` separately track created assignment keys and created entitlement UUIDs.
+     - Teardown cleans up assignments and entitlement definitions in **independent `try/catch` blocks**, ensuring an error in one cleanup step does not halt the other.
+     - Test server and PostgreSQL pool are always closed in `finally`. Cleanup failures are reported and fail the test run. Zero seed records from Northstar Labs are deleted or modified.
+- **Why It Is Needed**:
+  - Completes the core identity inventory domain (Identities $\to$ Accounts $\to$ Entitlements).
+  - Guarantees strict transactional integrity against cross-tenant or cross-application privilege pollution.
+  - Ensures robust automated CI execution without database corruption or test cross-contamination.
+- **Alternatives Considered**:
+  - *Optimistic Locking without Transactions*: Rejected because concurrent updates to account or entitlement application mappings could create invalid cross-application assignments in high-concurrency environments.
+  - *Hard Deleting Entitlement Definitions*: Rejected because deleting an entitlement definition cascades into `account_entitlements` and risk findings, destroying compliance evidence.
+
 
