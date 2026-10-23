@@ -5,6 +5,7 @@ import identityRoutes from '../modules/identities/identity.routes.js';
 import applicationRoutes from '../modules/applications/application.routes.js';
 import accountRoutes from '../modules/accounts/account.routes.js';
 import entitlementRoutes from '../modules/entitlements/entitlement.routes.js';
+import authRoutes from '../modules/auth/auth.routes.js';
 import { openApiSpec, swaggerOptions } from '../config/swagger.js';
 
 const router = Router();
@@ -37,6 +38,8 @@ v1Router.use('/applications', applicationRoutes);
 v1Router.use('/accounts', accountRoutes);
 // Milestone 5 — Entitlements & Access Relationships
 v1Router.use('/entitlements', entitlementRoutes);
+// Milestone 6 — Authentication Foundation (Phase 1)
+v1Router.use('/auth', authRoutes);
 // v1Router.use('/risk-findings', riskRoutes);
 
 v1Router.get('/', (req, res) => {
@@ -44,6 +47,7 @@ v1Router.get('/', (req, res) => {
     version: 'v1',
     status: 'operational',
     endpoints: [
+      '/auth',
       '/identities',
       '/applications',
       '/accounts',

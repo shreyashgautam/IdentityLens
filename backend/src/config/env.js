@@ -23,7 +23,15 @@ const envSchema = z.object({
     .default(false),
   DB_POOL_MAX: z.coerce.number().default(10),
   DB_IDLE_TIMEOUT_MS: z.coerce.number().default(30000),
-  DB_CONNECTION_TIMEOUT_MS: z.coerce.number().default(2000)
+  DB_CONNECTION_TIMEOUT_MS: z.coerce.number().default(2000),
+
+  // Authentication & Session Configuration (Milestone 6 Phase 1)
+  JWT_ACCESS_SECRET: z.string().min(16).default('identitylens-dev-access-token-secret-min32chars!!'),
+  JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+  JWT_REFRESH_EXPIRES_DAYS: z.coerce.number().default(7),
+  FIREBASE_PROJECT_ID: z.string().optional(),
+  FIREBASE_CLIENT_EMAIL: z.string().optional(),
+  FIREBASE_PRIVATE_KEY: z.string().optional()
 });
 
 const parsed = envSchema.safeParse(process.env);

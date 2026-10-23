@@ -1,4 +1,5 @@
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import { requestIdMiddleware } from './middlewares/request-id.js';
 import { securityHeadersMiddleware } from './middlewares/security-headers.js';
 import { corsMiddleware } from './middlewares/cors.js';
@@ -19,6 +20,9 @@ app.use(corsMiddleware);
 
 // 4. Body parsing middleware with size limits (100kb payload ceiling)
 app.use(express.json({ limit: '100kb' }));
+
+// 5. Cookie parsing middleware for HttpOnly refresh tokens
+app.use(cookieParser());
 
 // 5. Centralized routing (mounts /health, /, and /api/v1)
 app.use(routes);
