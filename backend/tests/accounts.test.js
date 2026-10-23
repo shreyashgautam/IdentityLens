@@ -2,10 +2,23 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import app from '../src/app.js';
 import { query, closePool } from '../src/database/connection.js';
+import { createTestUserAndSession } from './helpers/auth.helper.js';
 
 describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration Suite', () => {
   let server;
   let baseUrl;
+  let authHeaders = {};
+  let testUserId = null;
+
+  const authFetch = (url, options = {}) => {
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...authHeaders,
+        ...(options.headers || {})
+      }
+    });
+  };
 
   // Track exact IDs of test-created accounts for safe, targeted cleanup
   const createdAccountIds = new Set();
@@ -30,6 +43,11 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
         resolve();
       });
     });
+
+    // Initialize authenticated test user and session
+    const testAuth = await createTestUserAndSession();
+    authHeaders = testAuth.authHeaders;
+    testUserId = testAuth.user.id;
   });
 
   after(async () => {
@@ -38,6 +56,10 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
       if (createdAccountIds.size > 0) {
         const ids = Array.from(createdAccountIds);
         await query('DELETE FROM accounts WHERE id = ANY($1::uuid[])', [ids]);
+      }
+      if (testUserId) {
+        await query('DELETE FROM auth_audit_log WHERE user_id = $1', [testUserId]);
+        await query('DELETE FROM users WHERE id = $1', [testUserId]);
       }
     } catch (e) {
       // Ignore cleanup error in after hook
@@ -52,7 +74,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   // ============================================================================
 
   test('GET /api/v1/accounts returns 200 with collection envelope and pagination metadata', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -67,7 +89,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts pagination respects page and limit parameters', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts?page=1&limit=3`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts?page=1&limit=3`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -78,7 +100,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts rejects limit exceeding maximum of 100 with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts?limit=150`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts?limit=150`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -87,7 +109,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts rejects invalid page <= 0 with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts?page=0`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts?page=0`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -96,7 +118,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts filters by status and application_id', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts?status=active&application_id=${AWS_APP_ID}`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts?status=active&application_id=${AWS_APP_ID}`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -108,7 +130,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts filters by identity_id', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts?identity_id=${BEN_IDENTITY_ID}`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts?identity_id=${BEN_IDENTITY_ID}`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -119,7 +141,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts filters by is_orphan=true (only accounts where identity_id is null)', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts?is_orphan=true`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts?is_orphan=true`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -130,7 +152,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts filters by is_orphan=false (only linked accounts)', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts?is_orphan=false`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts?is_orphan=false`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -141,11 +163,11 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts sorts by allowlisted column account_name asc and desc', async () => {
-    const resAsc = await fetch(`${baseUrl}/api/v1/accounts?sort_by=account_name&sort_order=asc&limit=5`);
+    const resAsc = await authFetch(`${baseUrl}/api/v1/accounts?sort_by=account_name&sort_order=asc&limit=5`);
     assert.equal(resAsc.status, 200);
     const bodyAsc = await resAsc.json();
 
-    const resDesc = await fetch(`${baseUrl}/api/v1/accounts?sort_by=account_name&sort_order=desc&limit=5`);
+    const resDesc = await authFetch(`${baseUrl}/api/v1/accounts?sort_by=account_name&sort_order=desc&limit=5`);
     assert.equal(resDesc.status, 200);
     const bodyDesc = await resDesc.json();
 
@@ -153,7 +175,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts rejects unallowed sort column with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts?sort_by=unallowed_column_name`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts?sort_by=unallowed_column_name`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -162,7 +184,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts search matches external_id, account_name, or email case-insensitively', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts?search=bcarter`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts?search=bcarter`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -181,7 +203,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   // ============================================================================
 
   test('GET /api/v1/accounts/:accountId retrieves existing seed account', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts/${SEED_ACCOUNT_ID}`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/${SEED_ACCOUNT_ID}`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -193,7 +215,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts/:accountId returns 404 for nonexistent UUID', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts/${NON_EXISTENT_UUID}`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/${NON_EXISTENT_UUID}`);
     assert.equal(res.status, 404);
 
     const body = await res.json();
@@ -202,7 +224,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/accounts/:accountId returns 422 for malformed non-UUID identifier', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts/not-a-valid-uuid`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/not-a-valid-uuid`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -225,7 +247,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
       source: 'aws_iam_scim'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -252,7 +274,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
       status: 'active'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -272,7 +294,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
       external_id: 'test-acc-missing-app'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -289,7 +311,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
       application_id: AWS_APP_ID
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -307,7 +329,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
       external_id: 'test-acc-nonexistent-app'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -326,7 +348,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
       identity_id: NON_EXISTENT_UUID
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -345,7 +367,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
       status: 'non_existent_status'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -364,7 +386,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
       injected_field: 'malicious_value'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -382,7 +404,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
       external_id: 'usr-aws-bcarter'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -400,7 +422,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
 
   test('PATCH /api/v1/accounts/:accountId partially updates permitted fields and touches updated_at', async () => {
     // Create an isolated account to update
-    const createRes = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const createRes = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -414,7 +436,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
     const created = (await createRes.json()).data;
     registerCreatedId(created.id);
 
-    const updateRes = await fetch(`${baseUrl}/api/v1/accounts/${created.id}`, {
+    const updateRes = await authFetch(`${baseUrl}/api/v1/accounts/${created.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -433,7 +455,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
 
   test('PATCH /api/v1/accounts/:accountId can link an orphan account to an identity', async () => {
     // Create orphan account
-    const createRes = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const createRes = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -447,7 +469,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
     registerCreatedId(created.id);
 
     // Link to Ben
-    const patchRes = await fetch(`${baseUrl}/api/v1/accounts/${created.id}`, {
+    const patchRes = await authFetch(`${baseUrl}/api/v1/accounts/${created.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -462,7 +484,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
 
   test('PATCH /api/v1/accounts/:accountId can unlink an account by setting identity_id to null', async () => {
     // Create linked account
-    const createRes = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const createRes = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -476,7 +498,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
     registerCreatedId(created.id);
 
     // Unlink to make orphan
-    const patchRes = await fetch(`${baseUrl}/api/v1/accounts/${created.id}`, {
+    const patchRes = await authFetch(`${baseUrl}/api/v1/accounts/${created.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -490,7 +512,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('PATCH /api/v1/accounts/:accountId rejects empty update body with 400 Bad Request', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts/${SEED_ACCOUNT_ID}`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/${SEED_ACCOUNT_ID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
@@ -502,7 +524,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('PATCH /api/v1/accounts/:accountId returns 404 for nonexistent account', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts/${NON_EXISTENT_UUID}`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/${NON_EXISTENT_UUID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'disabled' })
@@ -515,7 +537,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
 
   test('PATCH /api/v1/accounts/:accountId rejects updating external_id to collision with 409 Conflict', async () => {
     // Create an account
-    const createRes = await fetch(`${baseUrl}/api/v1/accounts`, {
+    const createRes = await authFetch(`${baseUrl}/api/v1/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -528,7 +550,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
     registerCreatedId(created.id);
 
     // Attempt to update external_id to existing 'usr-aws-bcarter'
-    const patchRes = await fetch(`${baseUrl}/api/v1/accounts/${created.id}`, {
+    const patchRes = await authFetch(`${baseUrl}/api/v1/accounts/${created.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -546,7 +568,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   // ============================================================================
 
   test('GET /api/v1/identities/:identityId/accounts returns accounts for an existing identity', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities/${BEN_IDENTITY_ID}/accounts`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities/${BEN_IDENTITY_ID}/accounts`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -560,7 +582,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/identities/:identityId/accounts returns 404 for nonexistent identity', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities/${NON_EXISTENT_UUID}/accounts`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities/${NON_EXISTENT_UUID}/accounts`);
     assert.equal(res.status, 404);
 
     const body = await res.json();
@@ -569,7 +591,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/identities/:identityId/accounts returns 422 for malformed UUID', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities/invalid-uuid-string/accounts`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities/invalid-uuid-string/accounts`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -578,7 +600,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/applications/:applicationId/accounts returns accounts for an existing application', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications/${AWS_APP_ID}/accounts`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications/${AWS_APP_ID}/accounts`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -592,7 +614,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/applications/:applicationId/accounts returns 404 for nonexistent application', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications/${NON_EXISTENT_UUID}/accounts`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications/${NON_EXISTENT_UUID}/accounts`);
     assert.equal(res.status, 404);
 
     const body = await res.json();
@@ -601,7 +623,7 @@ describe('Milestone 4 — Part 3: Account APIs & Relationship APIs Integration S
   });
 
   test('GET /api/v1/applications/:applicationId/accounts returns 422 for malformed UUID', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications/invalid-uuid-string/accounts`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications/invalid-uuid-string/accounts`);
     assert.equal(res.status, 422);
 
     const body = await res.json();

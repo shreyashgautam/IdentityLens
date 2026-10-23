@@ -708,4 +708,91 @@ Routes -> Controllers -> Services -> Repositories -> PostgreSQL
    └─ Evaluates SQL against entitlements and account_entitlements tables and returns typed rows to pool client.
 ```
 
+---
+
+## 9. Milestone 6 Stage C: Authentication, Refresh Rotation, and Revocation Flows
+
+```
+=========================================================================================
+                      AUTHENTICATED INVENTORY ACCESS FLOW
+=========================================================================================
+Client (HTTP Request)
+  │  Headers: Authorization: Bearer <jwt>
+  ▼
+1. authenticate Middleware (backend/src/middlewares/auth.js):
+   ├─ Validate presence of Authorization header (401 MISSING_TOKEN if missing).
+   ├─ Validate Bearer scheme (401 MALFORMED_TOKEN if wrong scheme).
+   ├─ Cryptographically verify JWT signature (HS256) & expiry (401 TOKEN_EXPIRED / INVALID_TOKEN).
+   ├─ Validate required identity claims: sub (user_id), sid (session_id), utv (token_version).
+   ├─ Database Session & User Validation:
+   │    SELECT u.id, u.is_active, u.token_version, s.is_revoked, s.expires_at
+   │    FROM users u JOIN user_sessions s ON s.id = $1 AND s.user_id = u.id WHERE u.id = $2;
+   │    ├─ Row missing: 401 SESSION_NOT_FOUND.
+   │    ├─ !is_active: 401 USER_INACTIVE.
+   │    ├─ is_revoked: 401 SESSION_REVOKED.
+   │    ├─ expires_at <= NOW(): 401 SESSION_EXPIRED.
+   │    └─ utv !== u.token_version: 401 TOKEN_REVOKED.
+   └─ Attach req.user and req.session context.
+  ▼
+2. requireVerifiedEmail Middleware (backend/src/middlewares/auth.js):
+   ├─ provider === 'password' && !email_verified: 403 EMAIL_NOT_VERIFIED.
+   ├─ provider in ['google.com', 'github.com']: Allowed per approved provider policy.
+   └─ Next -> Forward to inventory controllers.
+
+=========================================================================================
+                  REFRESH TOKEN ROTATION & REPLAY DEFENSE FLOW
+=========================================================================================
+Client (POST /api/v1/auth/refresh)
+  │  Cookie: refresh_token=<sessionId>.<secret>
+  │  Header: Origin: <allowed_origin>
+  ▼
+1. verifyCsrfOrigin:
+   └─ Validates Origin against CORS_ORIGIN and Sec-Fetch-Site !== 'cross-site' (403 FORBIDDEN_ORIGIN).
+2. auth.controller.js:
+   └─ Extracts rawRefreshToken from req.cookies.refresh_token (401 NO_REFRESH_TOKEN if missing).
+3. auth.service.js:rotateRefreshToken:
+   ├─ Hashes incoming token: SHA-256(rawRefreshToken).
+   ├─ Opens ACID Transaction: BEGIN.
+   ├─ Row-level Lock on Session:
+   │    SELECT * FROM user_sessions WHERE id = $sessionId FOR UPDATE;
+   ├─ IF current_refresh_token_hash !== incomingHash:
+   │    ├─ Check consumed_refresh_tokens (session_id, token_hash):
+   │    ├─ IF Found in consumed_refresh_tokens (REPLAY ATTACK):
+   │    │    ├─ Revoke session: UPDATE user_sessions SET is_revoked = TRUE WHERE id = $sessionId;
+   │    │    ├─ Log Audit: INSERT INTO auth_audit_log (action = 'REFRESH_TOKEN_REPLAY_ATTACK');
+   │    │    ├─ COMMIT transaction.
+   │    │    └─ Throw 401 SESSION_REVOKED_REPLAY.
+   │    └─ IF Not Found: ROLLBACK and throw 401 INVALID_TOKEN.
+   ├─ Success Path:
+   │    ├─ Record consumed token: INSERT INTO consumed_refresh_tokens (session_id, token_hash);
+   │    ├─ Generate new token: <sessionId>.<random32Bytes>;
+   │    ├─ Update session: UPDATE user_sessions SET current_refresh_token_hash = newHash, updated_at = NOW();
+   │    ├─ Sign new access JWT (HS256, 15m expiry, sub, sid, utv);
+   │    └─ COMMIT transaction.
+4. auth.controller.js:
+   ├─ Set-Cookie: refresh_token=<new>; HttpOnly; SameSite=Lax; Path=/api/v1/auth;
+   └─ Return 200 { accessToken, tokenType: 'Bearer', expiresIn: 900 }.
+
+=========================================================================================
+                       LOGOUT & REVOKE-ALL EXECUTION FLOW
+=========================================================================================
+Single-Session Logout (POST /api/v1/auth/logout):
+  ├─ Clear refresh_token cookie (Max-Age=0).
+  ├─ Extract sessionId from cookie or Authorization Bearer token.
+  ├─ UPDATE user_sessions SET is_revoked = TRUE WHERE id = $sessionId;
+  ├─ INSERT INTO auth_audit_log (action = 'USER_LOGOUT');
+  └─ Return 200 { success: true }. (Other sessions remain valid).
+
+User-Wide Revocation (POST /api/v1/auth/revoke-all):
+  ├─ Protected by authenticate middleware.
+  ├─ Clear refresh_token cookie (Max-Age=0).
+  ├─ Open ACID Transaction: BEGIN.
+  ├─ Row Lock on User: SELECT id, token_version FROM users WHERE id = $userId FOR UPDATE;
+  ├─ Revoke all sessions: UPDATE user_sessions SET is_revoked = TRUE WHERE user_id = $userId;
+  ├─ Increment token version: UPDATE users SET token_version = token_version + 1 WHERE id = $userId;
+  ├─ INSERT INTO auth_audit_log (action = 'USER_SESSIONS_REVOKED_ALL');
+  ├─ COMMIT transaction.
+  └─ Return 200 { success: true }. (All prior access JWTs fail with 401 TOKEN_REVOKED / SESSION_REVOKED).
+```
+
 

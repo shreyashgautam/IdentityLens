@@ -157,35 +157,184 @@ export const updateUser = async (client, id, {
  * Create a new logical device session
  */
 export const createSession = async (client, {
+  id = null,
   userId,
   currentRefreshTokenHash,
   userAgent = null,
   ipAddress = null,
   expiresAt
 }) => {
-  const sql = `
-    INSERT INTO user_sessions (
-      user_id,
-      current_refresh_token_hash,
-      user_agent,
-      ip_address,
-      is_revoked,
-      expires_at,
-      created_at,
-      updated_at
-    ) VALUES ($1, $2, $3, $4, FALSE, $5, NOW(), NOW())
-    RETURNING id, user_id, current_refresh_token_hash, user_agent, ip_address,
-              is_revoked, expires_at, created_at, updated_at;
-  `;
-  const params = [
-    userId,
-    currentRefreshTokenHash,
-    userAgent,
-    ipAddress,
-    expiresAt
-  ];
+  let sql;
+  let params;
+
+  if (id) {
+    sql = `
+      INSERT INTO user_sessions (
+        id,
+        user_id,
+        current_refresh_token_hash,
+        user_agent,
+        ip_address,
+        is_revoked,
+        expires_at,
+        created_at,
+        updated_at
+      ) VALUES ($1, $2, $3, $4, $5, FALSE, $6, NOW(), NOW())
+      RETURNING id, user_id, current_refresh_token_hash, user_agent, ip_address,
+                is_revoked, expires_at, created_at, updated_at;
+    `;
+    params = [id, userId, currentRefreshTokenHash, userAgent, ipAddress, expiresAt];
+  } else {
+    sql = `
+      INSERT INTO user_sessions (
+        user_id,
+        current_refresh_token_hash,
+        user_agent,
+        ip_address,
+        is_revoked,
+        expires_at,
+        created_at,
+        updated_at
+      ) VALUES ($1, $2, $3, $4, FALSE, $5, NOW(), NOW())
+      RETURNING id, user_id, current_refresh_token_hash, user_agent, ip_address,
+                is_revoked, expires_at, created_at, updated_at;
+    `;
+    params = [userId, currentRefreshTokenHash, userAgent, ipAddress, expiresAt];
+  }
+
   const { rows } = await client.query(sql, params);
   return rows[0];
+};
+
+/**
+ * Find session and joined user data by session ID with row lock
+ */
+export const findSessionByIdForUpdate = async (client, sessionId) => {
+  const sql = `
+    SELECT s.id AS session_id, s.user_id, s.current_refresh_token_hash, s.is_revoked AS session_revoked,
+           s.expires_at AS session_expires_at,
+           u.id AS user_id, u.email, u.provider, u.role, u.email_verified, u.is_active, u.token_version
+    FROM user_sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.id = $1
+    FOR UPDATE OF s;
+  `;
+  const { rows } = await client.query(sql, [sessionId]);
+  return rows[0] || null;
+};
+
+/**
+ * Find session by active refresh token hash with row lock
+ */
+export const findSessionByTokenHashForUpdate = async (client, tokenHash) => {
+  const sql = `
+    SELECT s.id AS session_id, s.user_id, s.current_refresh_token_hash, s.is_revoked AS session_revoked,
+           s.expires_at AS session_expires_at,
+           u.id AS user_id, u.email, u.provider, u.role, u.email_verified, u.is_active, u.token_version
+    FROM user_sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.current_refresh_token_hash = $1
+    FOR UPDATE OF s;
+  `;
+  const { rows } = await client.query(sql, [tokenHash]);
+  return rows[0] || null;
+};
+
+/**
+ * Check if a token hash has already been consumed for a given session (Replay Detection)
+ */
+export const findConsumedToken = async (client, sessionId, tokenHash) => {
+  const sql = `
+    SELECT id, session_id, token_hash, consumed_at
+    FROM consumed_refresh_tokens
+    WHERE session_id = $1 AND token_hash = $2
+    LIMIT 1;
+  `;
+  const { rows } = await client.query(sql, [sessionId, tokenHash]);
+  return rows[0] || null;
+};
+
+/**
+ * Check if a token hash has already been consumed anywhere (Replay Detection fallback)
+ */
+export const findConsumedTokenByHash = async (client, tokenHash) => {
+  const sql = `
+    SELECT id, session_id, token_hash, consumed_at
+    FROM consumed_refresh_tokens
+    WHERE token_hash = $1
+    LIMIT 1;
+  `;
+  const { rows } = await client.query(sql, [tokenHash]);
+  return rows[0] || null;
+};
+
+/**
+ * Record consumed refresh token hash into consumed_refresh_tokens history
+ */
+export const recordConsumedToken = async (client, sessionId, tokenHash) => {
+  const sql = `
+    INSERT INTO consumed_refresh_tokens (session_id, token_hash, consumed_at)
+    VALUES ($1, $2, NOW())
+    RETURNING id, session_id, token_hash, consumed_at;
+  `;
+  const { rows } = await client.query(sql, [sessionId, tokenHash]);
+  return rows[0];
+};
+
+/**
+ * Rotate session's active refresh token hash and extend expiration
+ */
+export const rotateSessionToken = async (client, sessionId, newHash, newExpiresAt) => {
+  const sql = `
+    UPDATE user_sessions
+    SET current_refresh_token_hash = $1, expires_at = $2, updated_at = NOW()
+    WHERE id = $3
+    RETURNING id, user_id, current_refresh_token_hash, is_revoked, expires_at, updated_at;
+  `;
+  const { rows } = await client.query(sql, [newHash, newExpiresAt, sessionId]);
+  return rows[0];
+};
+
+/**
+ * Revoke a single session by session ID
+ */
+export const revokeSession = async (clientOrPool, sessionId) => {
+  const q = clientOrPool.query ? clientOrPool.query.bind(clientOrPool) : defaultQuery;
+  const sql = `
+    UPDATE user_sessions
+    SET is_revoked = TRUE, updated_at = NOW()
+    WHERE id = $1
+    RETURNING id, user_id, is_revoked, updated_at;
+  `;
+  const { rows } = await q(sql, [sessionId]);
+  return rows[0] || null;
+};
+
+/**
+ * Revoke all active sessions belonging to a user
+ */
+export const revokeAllUserSessions = async (client, userId) => {
+  const sql = `
+    UPDATE user_sessions
+    SET is_revoked = TRUE, updated_at = NOW()
+    WHERE user_id = $1 AND is_revoked = FALSE;
+  `;
+  const result = await client.query(sql, [userId]);
+  return result.rowCount;
+};
+
+/**
+ * Increment user token_version and set tokens_valid_after to NOW()
+ */
+export const advanceUserTokenVersion = async (client, userId) => {
+  const sql = `
+    UPDATE users
+    SET token_version = token_version + 1, tokens_valid_after = NOW(), updated_at = NOW()
+    WHERE id = $1
+    RETURNING id, token_version, tokens_valid_after;
+  `;
+  const { rows } = await client.query(sql, [userId]);
+  return rows[0] || null;
 };
 
 /**
@@ -220,3 +369,4 @@ export const createAuditLog = async (clientOrPool, {
   const { rows } = await q(sql, params);
   return rows[0];
 };
+

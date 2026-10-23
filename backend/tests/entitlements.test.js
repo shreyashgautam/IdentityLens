@@ -2,10 +2,22 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import app from '../src/app.js';
 import { query, closePool } from '../src/database/connection.js';
+import { createTestUserAndSession } from './helpers/auth.helper.js';
 
 describe('Milestone 5 — Entitlements & Access Relationships Integration Suite', () => {
   let server;
   let baseUrl;
+  let authHeaders = {};
+  const testUserIds = new Set();
+  const testSessionIds = new Set();
+
+  const authFetch = (url, options = {}) => {
+    const headers = {
+      ...authHeaders,
+      ...(options.headers || {})
+    };
+    return fetch(url, { ...options, headers });
+  };
 
   // Track exact IDs and assignment keys for safe, targeted cleanup
   const createdEntitlementIds = new Set();
@@ -45,6 +57,12 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
         resolve();
       });
     });
+
+    // Create test user and authenticated session with verified email
+    const authContext = await createTestUserAndSession();
+    authHeaders = authContext.authHeaders;
+    testUserIds.add(authContext.user.id);
+    testSessionIds.add(authContext.session.id);
   });
 
   after(async () => {
@@ -77,6 +95,20 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
       cleanupErrors.push(err);
     }
 
+    // Clean up test auth sessions and users
+    try {
+      if (testSessionIds.size > 0) {
+        await query('DELETE FROM user_sessions WHERE id = ANY($1::uuid[])', [Array.from(testSessionIds)]);
+      }
+      if (testUserIds.size > 0) {
+        await query('DELETE FROM auth_audit_log WHERE user_id = ANY($1::uuid[])', [Array.from(testUserIds)]);
+        await query('DELETE FROM users WHERE id = ANY($1::uuid[])', [Array.from(testUserIds)]);
+      }
+    } catch (err) {
+      console.error('[Teardown] Failed to clean up test auth entities:', err);
+      cleanupErrors.push(err);
+    }
+
     // Technical safeguard 2: Always close server and pool in finally
     try {
       if (server) {
@@ -103,7 +135,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   // ============================================================================
 
   test('GET /api/v1/entitlements returns 200 with collection envelope and pagination metadata', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements`);
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -118,7 +150,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/entitlements pagination respects page and limit parameters', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements?page=1&limit=3`);
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements?page=1&limit=3`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -129,7 +161,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/entitlements rejects limit exceeding maximum of 100 with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements?limit=150`);
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements?limit=150`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -138,7 +170,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/entitlements rejects invalid page <= 0 with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements?page=0`);
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements?page=0`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -147,7 +179,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/entitlements filters by application_id and type', async () => {
-    const res = await fetch(
+    const res = await authFetch(
       `${baseUrl}/api/v1/entitlements?application_id=${AWS_APP_ID}&type=role`
     );
     assert.equal(res.status, 200);
@@ -158,7 +190,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/entitlements filters by is_privileged boolean', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements?is_privileged=true`);
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements?is_privileged=true`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -167,14 +199,14 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/entitlements sorts by allowlisted column name asc and desc', async () => {
-    const resAsc = await fetch(`${baseUrl}/api/v1/entitlements?sort_by=name&sort_order=asc`);
+    const resAsc = await authFetch(`${baseUrl}/api/v1/entitlements?sort_by=name&sort_order=asc`);
     assert.equal(resAsc.status, 200);
     const bodyAsc = await resAsc.json();
     const namesAsc = bodyAsc.data.map((e) => e.name);
     const sortedAsc = [...namesAsc].sort((a, b) => a.localeCompare(b));
     assert.deepEqual(namesAsc, sortedAsc);
 
-    const resDesc = await fetch(`${baseUrl}/api/v1/entitlements?sort_by=name&sort_order=desc`);
+    const resDesc = await authFetch(`${baseUrl}/api/v1/entitlements?sort_by=name&sort_order=desc`);
     assert.equal(resDesc.status, 200);
     const bodyDesc = await resDesc.json();
     const namesDesc = bodyDesc.data.map((e) => e.name);
@@ -183,7 +215,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/entitlements rejects unallowed sort column with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements?sort_by=password`);
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements?sort_by=password`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -192,7 +224,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/entitlements search matches name or description case-insensitively', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements?search=administrator`);
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements?search=administrator`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -211,7 +243,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   // ============================================================================
 
   test('GET /api/v1/entitlements/:entitlementId retrieves existing seed entitlement', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements/${AWS_ADMIN_ENT_ID}`);
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements/${AWS_ADMIN_ENT_ID}`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -223,7 +255,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/entitlements/:entitlementId returns 404 for nonexistent UUID', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements/${NON_EXISTENT_UUID}`);
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements/${NON_EXISTENT_UUID}`);
     assert.equal(res.status, 404);
 
     const body = await res.json();
@@ -231,7 +263,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/entitlements/:entitlementId returns 422 for malformed non-UUID', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements/not-a-valid-uuid`);
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements/not-a-valid-uuid`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -252,7 +284,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
       is_privileged: false
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -277,7 +309,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
       type: 'role'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -295,7 +327,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
       type: 'role'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -314,7 +346,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
       type: 'superpower'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -334,7 +366,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
       isAdminUser: true
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -352,7 +384,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
       type: 'role'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -371,7 +403,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
       type: 'role'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -388,7 +420,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
 
   test('PATCH /api/v1/entitlements/:entitlementId partially updates permitted fields and touches updated_at', async () => {
     // First create an entitlement to update safely without touching seed data
-    const createRes = await fetch(`${baseUrl}/api/v1/entitlements`, {
+    const createRes = await authFetch(`${baseUrl}/api/v1/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -408,7 +440,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
       is_privileged: true
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/entitlements/${entId}`, {
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements/${entId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatePayload)
@@ -422,7 +454,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('PATCH /api/v1/entitlements/:entitlementId rejects empty update body with 400 Bad Request', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements/${AWS_ADMIN_ENT_ID}`, {
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements/${AWS_ADMIN_ENT_ID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
@@ -434,7 +466,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('PATCH /api/v1/entitlements/:entitlementId returns 404 for nonexistent entitlement', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/entitlements/${NON_EXISTENT_UUID}`, {
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements/${NON_EXISTENT_UUID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ description: 'New description' })
@@ -447,7 +479,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
 
   test('PATCH /api/v1/entitlements/:entitlementId rejects updating name to an existing name in same app with 409 Conflict', async () => {
     // Create an entitlement
-    const createRes = await fetch(`${baseUrl}/api/v1/entitlements`, {
+    const createRes = await authFetch(`${baseUrl}/api/v1/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -460,7 +492,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
     registerEntitlementId(created.data.id);
 
     // Try to update name to existing seed name 'AdministratorAccess' in same app
-    const res = await fetch(`${baseUrl}/api/v1/entitlements/${created.data.id}`, {
+    const res = await authFetch(`${baseUrl}/api/v1/entitlements/${created.data.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'AdministratorAccess' })
@@ -476,7 +508,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   // ============================================================================
 
   test('GET /api/v1/accounts/:accountId/entitlements returns 200 with list of assigned entitlements', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts/${AWS_BEN_ACCOUNT_ID}/entitlements`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/${AWS_BEN_ACCOUNT_ID}/entitlements`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -492,7 +524,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/accounts/:accountId/entitlements returns 404 for nonexistent account UUID', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts/${NON_EXISTENT_UUID}/entitlements`);
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/${NON_EXISTENT_UUID}/entitlements`);
     assert.equal(res.status, 404);
 
     const body = await res.json();
@@ -500,7 +532,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('GET /api/v1/accounts/:accountId/entitlements filters by type and is_privileged', async () => {
-    const res = await fetch(
+    const res = await authFetch(
       `${baseUrl}/api/v1/accounts/${AWS_BEN_ACCOUNT_ID}/entitlements?type=role&is_privileged=true`
     );
     assert.equal(res.status, 200);
@@ -516,7 +548,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
 
   test('POST /api/v1/accounts/:accountId/entitlements assigns entitlement in transaction with 201 Created', async () => {
     // Create a new entitlement in AWS app
-    const entRes = await fetch(`${baseUrl}/api/v1/entitlements`, {
+    const entRes = await authFetch(`${baseUrl}/api/v1/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -530,7 +562,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
     registerEntitlementId(entId);
 
     // Assign to Nina's AWS account
-    const res = await fetch(`${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -547,7 +579,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('POST /api/v1/accounts/:accountId/entitlements returns 404 for nonexistent account UUID', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts/${NON_EXISTENT_UUID}/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/${NON_EXISTENT_UUID}/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entitlement_id: AWS_ADMIN_ENT_ID })
@@ -559,7 +591,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('POST /api/v1/accounts/:accountId/entitlements returns 422 for nonexistent entitlement UUID', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entitlement_id: NON_EXISTENT_UUID })
@@ -572,7 +604,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
 
   test('POST /api/v1/accounts/:accountId/entitlements enforces application boundary and blocks cross-app assignment with 422', async () => {
     // Attempt to assign GitHub entitlement (App b02) to AWS account (App b01)
-    const res = await fetch(`${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entitlement_id: GITHUB_OWNER_ENT_ID })
@@ -590,7 +622,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
 
   test('POST /api/v1/accounts/:accountId/entitlements detects duplicate assignment and returns 409 Conflict', async () => {
     // Seed data: Ben's account already has AWS_ADMIN_ENT_ID
-    const res = await fetch(`${baseUrl}/api/v1/accounts/${AWS_BEN_ACCOUNT_ID}/entitlements`, {
+    const res = await authFetch(`${baseUrl}/api/v1/accounts/${AWS_BEN_ACCOUNT_ID}/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entitlement_id: AWS_ADMIN_ENT_ID })
@@ -607,7 +639,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
 
   test('DELETE /api/v1/accounts/:accountId/entitlements/:entitlementId removes assignment with 204 No Content', async () => {
     // 1. Create a test entitlement
-    const entRes = await fetch(`${baseUrl}/api/v1/entitlements`, {
+    const entRes = await authFetch(`${baseUrl}/api/v1/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -621,7 +653,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
     registerEntitlementId(entId);
 
     // 2. Assign to Nina's AWS account
-    const assignRes = await fetch(`${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements`, {
+    const assignRes = await authFetch(`${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entitlement_id: entId })
@@ -630,31 +662,31 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
     registerAssignment(AWS_NINA_ACCOUNT_ID, entId);
 
     // 3. Delete assignment
-    const delRes = await fetch(
+    const delRes = await authFetch(
       `${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements/${entId}`,
       { method: 'DELETE' }
     );
     assert.equal(delRes.status, 204);
 
     // 4. Verify assignment is gone (subsequent delete returns 404)
-    const secondDel = await fetch(
+    const secondDel = await authFetch(
       `${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements/${entId}`,
       { method: 'DELETE' }
     );
     assert.equal(secondDel.status, 404);
 
     // 5. Verify the entitlement definition still exists in the database
-    const entLookup = await fetch(`${baseUrl}/api/v1/entitlements/${entId}`);
+    const entLookup = await authFetch(`${baseUrl}/api/v1/entitlements/${entId}`);
     assert.equal(entLookup.status, 200, 'Entitlement definition must NOT be deleted');
 
     // 6. Verify the account still exists in the database
-    const accLookup = await fetch(`${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}`);
+    const accLookup = await authFetch(`${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}`);
     assert.equal(accLookup.status, 200, 'Account must NOT be deleted');
   });
 
   test('DELETE /api/v1/accounts/:accountId/entitlements/:entitlementId returns 404 when assignment does not exist', async () => {
     // Nina does not have EC2FullAccess in seed data
-    const res = await fetch(
+    const res = await authFetch(
       `${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements/${AWS_EC2_ENT_ID}`,
       { method: 'DELETE' }
     );
@@ -664,7 +696,7 @@ describe('Milestone 5 — Entitlements & Access Relationships Integration Suite'
   });
 
   test('DELETE /api/v1/accounts/:accountId/entitlements/:entitlementId returns 422 for malformed non-UUID param', async () => {
-    const res = await fetch(
+    const res = await authFetch(
       `${baseUrl}/api/v1/accounts/${AWS_NINA_ACCOUNT_ID}/entitlements/not-a-valid-uuid`,
       { method: 'DELETE' }
     );

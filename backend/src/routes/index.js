@@ -6,6 +6,7 @@ import applicationRoutes from '../modules/applications/application.routes.js';
 import accountRoutes from '../modules/accounts/account.routes.js';
 import entitlementRoutes from '../modules/entitlements/entitlement.routes.js';
 import authRoutes from '../modules/auth/auth.routes.js';
+import { authenticate, requireVerifiedEmail } from '../middlewares/auth.js';
 import { openApiSpec, swaggerOptions } from '../config/swagger.js';
 
 const router = Router();
@@ -32,14 +33,14 @@ router.get('/', (req, res) => {
 // Versioned API Router (/api/v1)
 const v1Router = Router();
 
-// Milestone 4 — Inventory Modules
-v1Router.use('/identities', identityRoutes);
-v1Router.use('/applications', applicationRoutes);
-v1Router.use('/accounts', accountRoutes);
-// Milestone 5 — Entitlements & Access Relationships
-v1Router.use('/entitlements', entitlementRoutes);
-// Milestone 6 — Authentication Foundation (Phase 1)
+// Milestone 6 — Authentication Endpoints (Public exchange & refresh/logout)
 v1Router.use('/auth', authRoutes);
+
+// Milestone 4 & 5 — Protected Inventory Modules (Requires authenticated session & verified email)
+v1Router.use('/identities', authenticate, requireVerifiedEmail, identityRoutes);
+v1Router.use('/applications', authenticate, requireVerifiedEmail, applicationRoutes);
+v1Router.use('/accounts', authenticate, requireVerifiedEmail, accountRoutes);
+v1Router.use('/entitlements', authenticate, requireVerifiedEmail, entitlementRoutes);
 // v1Router.use('/risk-findings', riskRoutes);
 
 v1Router.get('/', (req, res) => {

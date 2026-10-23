@@ -2,10 +2,23 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import app from '../src/app.js';
 import { query, closePool } from '../src/database/connection.js';
+import { createTestUserAndSession } from './helpers/auth.helper.js';
 
 describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   let server;
   let baseUrl;
+  let authHeaders = {};
+  let testUserId = null;
+
+  const authFetch = (url, options = {}) => {
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...authHeaders,
+        ...(options.headers || {})
+      }
+    });
+  };
 
   // Known seed IDs from Northstar Labs dataset for read assertions
   const ALICE_ID = 'a0000000-0000-0000-0000-000000000001';
@@ -21,6 +34,11 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
       });
     });
 
+    // Initialize authenticated test user and session
+    const testAuth = await createTestUserAndSession();
+    authHeaders = testAuth.authHeaders;
+    testUserId = testAuth.user.id;
+
     // Clean up any lingering test records
     await query("DELETE FROM identities WHERE email LIKE '%@test.identitylens.local' OR display_name LIKE '[TEST]%'");
   });
@@ -29,6 +47,10 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
     // Clean up all test records created during test execution
     try {
       await query("DELETE FROM identities WHERE email LIKE '%@test.identitylens.local' OR display_name LIKE '[TEST]%'");
+      if (testUserId) {
+        await query('DELETE FROM auth_audit_log WHERE user_id = $1', [testUserId]);
+        await query('DELETE FROM users WHERE id = $1', [testUserId]);
+      }
     } catch (e) {
       // Ignore cleanup error
     }
@@ -42,7 +64,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   // ============================================================================
 
   test('GET /api/v1/identities returns 200 with collection envelope and pagination metadata', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -57,7 +79,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/identities pagination respects page and limit parameters', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities?page=1&limit=2`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities?page=1&limit=2`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -68,7 +90,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/identities rejects limit exceeding maximum of 100 with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities?limit=101`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities?limit=101`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -77,7 +99,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/identities rejects invalid page <= 0 with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities?page=0`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities?page=0`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -86,7 +108,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/identities filters by status and identity_type', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities?status=active&identity_type=bot`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities?status=active&identity_type=bot`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -97,12 +119,12 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/identities sorts by allowlisted column display_name asc and desc', async () => {
-    const resAsc = await fetch(`${baseUrl}/api/v1/identities?sort_by=display_name&sort_order=asc&limit=10`);
+    const resAsc = await authFetch(`${baseUrl}/api/v1/identities?sort_by=display_name&sort_order=asc&limit=10`);
     assert.equal(resAsc.status, 200);
     const bodyAsc = await resAsc.json();
     const namesAsc = bodyAsc.data.map((i) => i.display_name);
 
-    const resDesc = await fetch(`${baseUrl}/api/v1/identities?sort_by=display_name&sort_order=desc&limit=10`);
+    const resDesc = await authFetch(`${baseUrl}/api/v1/identities?sort_by=display_name&sort_order=desc&limit=10`);
     assert.equal(resDesc.status, 200);
     const bodyDesc = await resDesc.json();
     const namesDesc = bodyDesc.data.map((i) => i.display_name);
@@ -111,7 +133,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/identities rejects unallowed sort column with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities?sort_by=unallowed_column`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities?sort_by=unallowed_column`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -120,7 +142,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/identities search matches display_name and email case-insensitively', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities?search=alice`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities?search=alice`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -137,7 +159,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   // ============================================================================
 
   test('GET /api/v1/identities/:identityId retrieves existing seed identity', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities/${ALICE_ID}`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities/${ALICE_ID}`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -149,7 +171,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/identities/:identityId returns 404 for nonexistent UUID', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities/${NON_EXISTENT_UUID}`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities/${NON_EXISTENT_UUID}`);
     assert.equal(res.status, 404);
 
     const body = await res.json();
@@ -159,7 +181,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/identities/:identityId returns 422 for malformed non-UUID identifier', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities/not-a-valid-uuid`);
+    const res = await authFetch(`${baseUrl}/api/v1/identities/not-a-valid-uuid`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -182,7 +204,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
       title: 'Software Engineer'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/identities`, {
+    const res = await authFetch(`${baseUrl}/api/v1/identities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -206,7 +228,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
       email: 'missing.name@test.identitylens.local'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/identities`, {
+    const res = await authFetch(`${baseUrl}/api/v1/identities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -224,7 +246,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
       identity_type: 'superhero'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/identities`, {
+    const res = await authFetch(`${baseUrl}/api/v1/identities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -243,7 +265,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
       forbidden_admin_field: true
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/identities`, {
+    const res = await authFetch(`${baseUrl}/api/v1/identities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -261,7 +283,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
       owner_id: NON_EXISTENT_UUID
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/identities`, {
+    const res = await authFetch(`${baseUrl}/api/v1/identities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -279,7 +301,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
 
   test('PATCH /api/v1/identities/:identityId partially updates permitted fields and touches updated_at', async () => {
     // 1. Create temporary identity to update
-    const createRes = await fetch(`${baseUrl}/api/v1/identities`, {
+    const createRes = await authFetch(`${baseUrl}/api/v1/identities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -292,7 +314,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
     const created = (await createRes.json()).data;
 
     // 2. Patch title and department
-    const patchRes = await fetch(`${baseUrl}/api/v1/identities/${created.id}`, {
+    const patchRes = await authFetch(`${baseUrl}/api/v1/identities/${created.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -310,7 +332,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('PATCH /api/v1/identities/:identityId rejects empty update body with 400 Bad Request', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities/${ALICE_ID}`, {
+    const res = await authFetch(`${baseUrl}/api/v1/identities/${ALICE_ID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
@@ -322,7 +344,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('PATCH /api/v1/identities/:identityId returns 404 for nonexistent identity', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities/${NON_EXISTENT_UUID}`, {
+    const res = await authFetch(`${baseUrl}/api/v1/identities/${NON_EXISTENT_UUID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'New Title' })
@@ -334,7 +356,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
   });
 
   test('PATCH /api/v1/identities/:identityId rejects direct self-ownership with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/identities/${ALICE_ID}`, {
+    const res = await authFetch(`${baseUrl}/api/v1/identities/${ALICE_ID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ owner_id: ALICE_ID })
@@ -348,7 +370,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
 
   test('PATCH /api/v1/identities/:identityId detects and blocks multi-hop circular ownership with 409 Conflict', async () => {
     // 1. Create Identity Node A
-    const resA = await fetch(`${baseUrl}/api/v1/identities`, {
+    const resA = await authFetch(`${baseUrl}/api/v1/identities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -360,7 +382,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
     const nodeA = (await resA.json()).data;
 
     // 2. Create Identity Node B owned by Node A (A is owner of B)
-    const resB = await fetch(`${baseUrl}/api/v1/identities`, {
+    const resB = await authFetch(`${baseUrl}/api/v1/identities`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -373,7 +395,7 @@ describe('Milestone 4 — Part 1: Identity APIs Integration Suite', () => {
     const nodeB = (await resB.json()).data;
 
     // 3. Attempt to set Node A's owner to Node B (which would create cycle: A -> B -> A)
-    const resCycle = await fetch(`${baseUrl}/api/v1/identities/${nodeA.id}`, {
+    const resCycle = await authFetch(`${baseUrl}/api/v1/identities/${nodeA.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ owner_id: nodeB.id })

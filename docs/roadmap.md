@@ -303,17 +303,14 @@ Protect the application before exposing sensitive inventory functionality.
 
 ### Tasks
 
-- Select and document the authentication mechanism.
-- Implement signup and login.
-- Implement logout and token or session refresh as appropriate.
-- Implement forgot-password and reset-password flows.
-- Use secure password hashing.
-- Add authentication middleware.
-- Define ACL/RBAC policies.
-- Protect administrative routes.
-- Enforce resource-level authorization.
-- Add authentication-specific rate limits.
-- Add tests for account enumeration, expired tokens, IDOR, and privilege escalation.
+- [x] **Stage A**: Database Migration & Schema (002_authentication_schema.sql with `users`, `user_sessions`, `consumed_refresh_tokens`, `auth_audit_log`).
+- [x] **Stage B**: Firebase ID Token Exchange (`POST /api/v1/auth/firebase/exchange`), Zero Auto-Merge, secure access JWT & HttpOnly refresh token issuance.
+- [x] **Stage C**: Authentication Middleware (`authenticate`), provider-specific `requireVerifiedEmail`, protected inventory routes (`/identities`, `/applications`, `/accounts`, `/entitlements`).
+- [x] **Stage C**: Single-Use Refresh Rotation (`POST /api/v1/auth/refresh`) with SHA-256 hashing, row-level locking, and zero-grace replay defense.
+- [x] **Stage C**: Session Revocation & Logout (`POST /api/v1/auth/logout`, `POST /api/v1/auth/revoke-all`).
+- [ ] **Stage D**: Password-reset completion synchronization, session listing/revocation endpoints, and admin-bootstrap CLI.
+- [ ] Define and enforce role-based authorization / administrative routes (`/admin/*`).
+- [ ] Add authentication-specific rate limits.
 
 ### Acceptance criteria
 

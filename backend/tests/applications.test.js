@@ -2,10 +2,23 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import app from '../src/app.js';
 import { query, closePool } from '../src/database/connection.js';
+import { createTestUserAndSession } from './helpers/auth.helper.js';
 
 describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   let server;
   let baseUrl;
+  let authHeaders = {};
+  let testUserId = null;
+
+  const authFetch = (url, options = {}) => {
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...authHeaders,
+        ...(options.headers || {})
+      }
+    });
+  };
 
   // Known seed IDs from Northstar Labs dataset for read assertions
   const AWS_APP_ID = 'b0000000-0000-0000-0000-000000000001';
@@ -22,6 +35,11 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
       });
     });
 
+    // Initialize authenticated test user and session
+    const testAuth = await createTestUserAndSession();
+    authHeaders = testAuth.authHeaders;
+    testUserId = testAuth.user.id;
+
     // Clean up any lingering test records
     await query("DELETE FROM applications WHERE key LIKE 'test_%' OR name LIKE '[TEST]%'");
   });
@@ -30,6 +48,10 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
     // Clean up all test records created during test execution
     try {
       await query("DELETE FROM applications WHERE key LIKE 'test_%' OR name LIKE '[TEST]%'");
+      if (testUserId) {
+        await query('DELETE FROM auth_audit_log WHERE user_id = $1', [testUserId]);
+        await query('DELETE FROM users WHERE id = $1', [testUserId]);
+      }
     } catch (e) {
       // Ignore cleanup error
     }
@@ -43,7 +65,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   // ============================================================================
 
   test('GET /api/v1/applications returns 200 with collection envelope and pagination metadata', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -58,7 +80,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/applications pagination respects page and limit parameters', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications?page=1&limit=2`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications?page=1&limit=2`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -69,7 +91,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/applications rejects limit exceeding maximum of 100 with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications?limit=101`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications?limit=101`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -78,7 +100,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/applications rejects invalid page <= 0 with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications?page=0`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications?page=0`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -87,7 +109,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/applications filters by status and auth_type', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications?status=active&auth_type=iam`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications?status=active&auth_type=iam`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -99,12 +121,12 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/applications sorts by allowlisted column name asc and desc', async () => {
-    const resAsc = await fetch(`${baseUrl}/api/v1/applications?sort_by=name&sort_order=asc&limit=10`);
+    const resAsc = await authFetch(`${baseUrl}/api/v1/applications?sort_by=name&sort_order=asc&limit=10`);
     assert.equal(resAsc.status, 200);
     const bodyAsc = await resAsc.json();
     const namesAsc = bodyAsc.data.map((a) => a.name);
 
-    const resDesc = await fetch(`${baseUrl}/api/v1/applications?sort_by=name&sort_order=desc&limit=10`);
+    const resDesc = await authFetch(`${baseUrl}/api/v1/applications?sort_by=name&sort_order=desc&limit=10`);
     assert.equal(resDesc.status, 200);
     const bodyDesc = await resDesc.json();
     const namesDesc = bodyDesc.data.map((a) => a.name);
@@ -113,7 +135,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/applications rejects unallowed sort column with 422', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications?sort_by=unallowed_column`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications?sort_by=unallowed_column`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -122,7 +144,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/applications search matches name, key, or description case-insensitively', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications?search=github`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications?search=github`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -142,7 +164,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   // ============================================================================
 
   test('GET /api/v1/applications/:applicationId retrieves existing seed application', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications/${AWS_APP_ID}`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications/${AWS_APP_ID}`);
     assert.equal(res.status, 200);
 
     const body = await res.json();
@@ -155,7 +177,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/applications/:applicationId returns 404 for nonexistent UUID', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications/${NON_EXISTENT_UUID}`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications/${NON_EXISTENT_UUID}`);
     assert.equal(res.status, 404);
 
     const body = await res.json();
@@ -165,7 +187,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   });
 
   test('GET /api/v1/applications/:applicationId returns 422 for malformed non-UUID identifier', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications/not-a-valid-uuid`);
+    const res = await authFetch(`${baseUrl}/api/v1/applications/not-a-valid-uuid`);
     assert.equal(res.status, 422);
 
     const body = await res.json();
@@ -186,7 +208,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
       auth_type: 'saml'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/applications`, {
+    const res = await authFetch(`${baseUrl}/api/v1/applications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -210,7 +232,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
       status: 'active'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/applications`, {
+    const res = await authFetch(`${baseUrl}/api/v1/applications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -228,7 +250,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
       status: 'active'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/applications`, {
+    const res = await authFetch(`${baseUrl}/api/v1/applications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -247,7 +269,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
       status: 'pending_approval'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/applications`, {
+    const res = await authFetch(`${baseUrl}/api/v1/applications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -266,7 +288,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
       injected_field: true
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/applications`, {
+    const res = await authFetch(`${baseUrl}/api/v1/applications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -284,7 +306,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
       key: 'aws_cloud'
     };
 
-    const res = await fetch(`${baseUrl}/api/v1/applications`, {
+    const res = await authFetch(`${baseUrl}/api/v1/applications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -302,7 +324,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
 
   test('PATCH /api/v1/applications/:applicationId partially updates permitted fields and touches updated_at', async () => {
     // 1. Create temporary application to update
-    const createRes = await fetch(`${baseUrl}/api/v1/applications`, {
+    const createRes = await authFetch(`${baseUrl}/api/v1/applications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -315,7 +337,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
     const created = (await createRes.json()).data;
 
     // 2. Patch description and auth_type
-    const patchRes = await fetch(`${baseUrl}/api/v1/applications/${created.id}`, {
+    const patchRes = await authFetch(`${baseUrl}/api/v1/applications/${created.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -334,7 +356,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   });
 
   test('PATCH /api/v1/applications/:applicationId rejects empty update body with 400 Bad Request', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications/${AWS_APP_ID}`, {
+    const res = await authFetch(`${baseUrl}/api/v1/applications/${AWS_APP_ID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
@@ -346,7 +368,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
   });
 
   test('PATCH /api/v1/applications/:applicationId returns 404 for nonexistent application', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/applications/${NON_EXISTENT_UUID}`, {
+    const res = await authFetch(`${baseUrl}/api/v1/applications/${NON_EXISTENT_UUID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ description: 'New description' })
@@ -359,7 +381,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
 
   test('PATCH /api/v1/applications/:applicationId rejects updating key to an existing key with 409 Conflict', async () => {
     // 1. Create temporary application
-    const createRes = await fetch(`${baseUrl}/api/v1/applications`, {
+    const createRes = await authFetch(`${baseUrl}/api/v1/applications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -370,7 +392,7 @@ describe('Milestone 4 — Part 2: Application APIs Integration Suite', () => {
     const created = (await createRes.json()).data;
 
     // 2. Attempt to update its key to "aws_cloud" (already taken by seed app)
-    const patchRes = await fetch(`${baseUrl}/api/v1/applications/${created.id}`, {
+    const patchRes = await authFetch(`${baseUrl}/api/v1/applications/${created.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key: 'aws_cloud' })

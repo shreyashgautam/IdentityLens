@@ -392,8 +392,39 @@ This document logs all key architectural, technical, library, and design decisio
   - Completes the core identity inventory domain (Identities $\to$ Accounts $\to$ Entitlements).
   - Guarantees strict transactional integrity against cross-tenant or cross-application privilege pollution.
   - Ensures robust automated CI execution without database corruption or test cross-contamination.
+### Decision 23: Stage C — Session Security, Single-Use Refresh Rotation with Row-Level Locking, Replay Defense, and Protected Inventory APIs
+
+- **Decision**:
+  1. **Authentication Middleware (`authenticate`)**:
+     - Verifies access JWT signature (`HS256`), algorithm, and expiration.
+     - Enforces presence of required identity claims: `sub` (user UUID), `sid` (session UUID), and `utv` (user token version integer).
+     - Queries PostgreSQL directly joining `users` and `user_sessions` to validate user active status (`is_active: true`), session existence, session revocation (`is_revoked: false`), session expiry (`expires_at > NOW()`), and user token version match (`decoded.utv === sessionRecord.token_version`).
+     - Fails closed with standardized, sanitized errors (`MISSING_TOKEN`, `MALFORMED_TOKEN`, `INVALID_TOKEN`, `TOKEN_EXPIRED`, `SESSION_NOT_FOUND`, `SESSION_REVOKED`, `SESSION_EXPIRED`, `TOKEN_REVOKED`, `USER_INACTIVE`).
+  2. **Email Verification Policy Middleware (`requireVerifiedEmail`)**:
+     - Enforces provider-specific verification rules:
+       - `password` provider accounts require authentic `email_verified: true` before granting access to inventory resources (rejecting unverified accounts with `403 EMAIL_NOT_VERIFIED`).
+       - Federated OAuth providers (`google.com`, `github.com`) are admitted without secondary verification in accordance with approved policy.
+  3. **Strict Route Protection**:
+     - Mounts `authenticate` and `requireVerifiedEmail` directly on all core inventory routes (`/api/v1/identities`, `/api/v1/applications`, `/api/v1/accounts`, `/api/v1/entitlements`).
+     - Public endpoints (`/health`, `/health/live`, `/health/ready`, `/docs`, `/api/v1`) remain open for operational probes.
+  4. **Single-Use Refresh Token Rotation (`POST /api/v1/auth/refresh`)**:
+     - Refresh tokens are transmitted exclusively via secure `HttpOnly; SameSite=Lax; Path=/api/v1/auth` cookies.
+     - Tokens are formatted as `${sessionId}.${secret}` allowing $O(1)$ row-level locking (`SELECT ... FROM user_sessions WHERE id = $1 FOR UPDATE`) within an ACID transaction.
+     - Incoming tokens are hashed with SHA-256 before database comparison.
+     - Zero grace period: Old token hash is transactionally recorded in `consumed_refresh_tokens`, and `user_sessions.current_refresh_token_hash` is atomically replaced with the new hash.
+     - **Replay Detection & Family Revocation**: Replaying an already-consumed token immediately triggers revocation of the entire affected session (`is_revoked = TRUE`), creates an audit log entry (`REFRESH_TOKEN_REPLAY_ATTACK`), clears the cookie, and returns `401 SESSION_REVOKED_REPLAY`.
+     - Concurrent refresh requests on the same session serialize safely via row-level locks; one request succeeds, and the other is caught by replay defense.
+  5. **Session Revocation & Logout Endpoints**:
+     - `POST /api/v1/auth/logout`: Revokes the active session in `user_sessions`, logs audit (`USER_LOGOUT`), and clears the refresh cookie with `Max-Age=0`. Other sessions for the user remain active.
+     - `POST /api/v1/auth/revoke-all`: Atomically acquires an exclusive row lock on the user record (`SELECT ... FROM users WHERE id = $1 FOR UPDATE`), revokes all active sessions for that user (`UPDATE user_sessions SET is_revoked = TRUE`), increments `users.token_version = token_version + 1`, logs audit (`USER_SESSIONS_REVOKED_ALL`), and clears the refresh cookie. All prior access tokens are immediately invalidated (`401 TOKEN_REVOKED` / `SESSION_REVOKED`).
+  6. **CSRF & Origin Verification**:
+     - `POST /api/v1/auth/refresh`, `logout`, and `revoke-all` are protected by `verifyCsrfOrigin` checking both `Origin` against `CORS_ORIGIN` and `Sec-Fetch-Site !== 'cross-site'`.
+- **Why It Is Needed**:
+  - Closes the attack surface on inventory data by ensuring every inventory request is cryptographically and statefully authenticated.
+  - Mitigates token theft through single-use refresh rotation and family revocation.
+  - Ensures instant user-wide revocation across horizontal backend instances via PostgreSQL state checks.
 - **Alternatives Considered**:
-  - *Optimistic Locking without Transactions*: Rejected because concurrent updates to account or entitlement application mappings could create invalid cross-application assignments in high-concurrency environments.
-  - *Hard Deleting Entitlement Definitions*: Rejected because deleting an entitlement definition cascades into `account_entitlements` and risk findings, destroying compliance evidence.
+  - *Stateless JWT-Only Validation*: Rejected because pure JWTs cannot be revoked without expiration, leaving window for compromised tokens.
+  - *Grace Period for Refresh Rotation*: Rejected to enforce strict zero-trust replay detection as required by the security threat model.
 
 
