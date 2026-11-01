@@ -182,7 +182,7 @@ const FINDINGS: RiskFinding[] = [
     severity: 'Critical',
     relatedEntity: {
       name: 'Marcus Chen',
-      emailOrIdentifier: 'm.chen@enterprise-demo.io',
+      emailOrIdentifier: 'm.chen@enterprise.io',
       initials: 'MC'
     },
     application: {
@@ -219,7 +219,7 @@ const FINDINGS: RiskFinding[] = [
     severity: 'High',
     relatedEntity: {
       name: 'Sarah Jenkins',
-      emailOrIdentifier: 's.jenkins@enterprise-demo.io',
+      emailOrIdentifier: 's.jenkins@enterprise.io',
       initials: 'SJ'
     },
     application: {
@@ -274,7 +274,7 @@ const FINDINGS: RiskFinding[] = [
     severity: 'Low',
     relatedEntity: {
       name: 'Integration Bot (Jira)',
-      emailOrIdentifier: 'bot-jira-sync@enterprise-demo.io',
+      emailOrIdentifier: 'bot-jira-sync@enterprise.io',
       isServiceAccount: true,
       icon: 'vpn_key'
     },

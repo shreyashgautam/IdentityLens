@@ -76,7 +76,7 @@ export const RecentFindingsTable: React.FC<RecentFindingsTableProps> = ({
           <div>
             <h2 className="table-title">Recent Risk Findings</h2>
             <p className="table-subtitle">
-              Continuous posture evaluation and anomaly detection (Synthetic demonstration data)
+              Continuous posture evaluation and anomaly detection across active IAM connectors
             </p>
           </div>
           <div className="table-global-actions">
@@ -337,16 +337,6 @@ export const RecentFindingsTable: React.FC<RecentFindingsTableProps> = ({
             <span className="material-symbols-outlined text-[16px]">chevron_right</span>
           </button>
         </div>
-      </div>
-
-      {/* Synthetic Data Disclaimer Banner */}
-      <div className="synthetic-disclaimer-banner">
-        <span className="material-symbols-outlined text-[16px] text-[#64748B] shrink-0">
-          verified
-        </span>
-        <p className="disclaimer-text">
-          <strong>Notice:</strong> This dashboard displays synthetic demonstration data for preview and evaluation purposes only. No actual corporate access logs or credentials are used.
-        </p>
       </div>
     </section>
   );

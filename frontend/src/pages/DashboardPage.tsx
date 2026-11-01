@@ -87,19 +87,13 @@ export const DashboardPage: React.FC = () => {
       {/* 1. Page Header */}
       <header className="page-header-row">
         <div className="page-title-block">
-          <div className="title-with-badge">
-            <h1 className="page-title">Overview</h1>
-            <div className="synthetic-env-pill">
-              <span className="material-symbols-outlined text-[14px] text-[#94A3B8]">info</span>
-              <span>DEMO ENVIRONMENT (Synthetic Data)</span>
-            </div>
-          </div>
+          <h1 className="page-title">Overview</h1>
           <p className="page-subtitle">
             Explore identities, access relationships, and potential security risks across cloud infrastructure and SaaS.
           </p>
         </div>
 
-        {/* Action Controls */}
+        {/* Action Controls in One Aligned Line */}
         <div className="page-actions-cluster">
           {/* Time Range Selector */}
           <div className="select-wrapper">
