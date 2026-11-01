@@ -7,7 +7,9 @@ import { errorResponse } from '../helpers/response.helper.js';
 export const errorHandlerMiddleware = (err, req, res, next) => {
   const status = err.status || 500;
   const code = err.code || (status === 500 ? 'INTERNAL_ERROR' : 'BAD_REQUEST');
-  const message = err.message || 'An unexpected server failure occurred';
+  const message = status === 500 && process.env.NODE_ENV === 'production'
+    ? 'An unexpected internal server error occurred.'
+    : err.message || 'An unexpected server failure occurred';
 
   // Log error on server without leaking internal stack to client
   console.error(`[${req.id || 'NO_REQ_ID'}] ${err.name || 'Error'}: ${err.message}`);

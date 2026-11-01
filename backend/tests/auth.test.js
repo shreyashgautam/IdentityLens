@@ -1063,7 +1063,65 @@ describe('Milestone 6 — Phase 1 Stage B: Firebase Authentication & Token Excha
     assert.equal(bodyCrossSite.error.code, 'FORBIDDEN_ORIGIN');
   });
 
-  // 16. Exact-ID test cleanup and preservation of all seed records
+  // 16. Missing refresh cookie rejected safely
+  test('Stage C: Rejects POST /api/v1/auth/refresh with missing refresh token cookie with 401 NO_REFRESH_TOKEN', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Origin': env.CORS_ORIGIN
+      }
+    });
+
+    assert.equal(res.status, 401);
+    const body = await res.json();
+    assert.equal(body.error.code, 'NO_REFRESH_TOKEN');
+  });
+
+  // 17. Rejects JWT algorithm confusion ('none' algorithm attack)
+  test('Stage C: Rejects access JWT using algorithm "none" with 401 INVALID_TOKEN', async () => {
+    const authContext = await createTestUserAndSession();
+    registerCreatedUser(authContext.user.id);
+
+    // Construct unsigned JWT with alg: "none"
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({
+      sub: authContext.user.id,
+      sid: authContext.session.id,
+      utv: authContext.user.token_version,
+      role: 'viewer'
+    })).toString('base64url');
+    const noneToken = `${header}.${payload}.`;
+
+    const res = await fetch(`${baseUrl}/api/v1/identities`, {
+      headers: {
+        Authorization: `Bearer ${noneToken}`
+      }
+    });
+
+    assert.equal(res.status, 401);
+    const body = await res.json();
+    assert.equal(body.error.code, 'INVALID_TOKEN');
+  });
+
+  // 18. Rejects refresh token for inactive user
+  test('Stage C: Rejects refresh token when user account is inactive with 401 USER_INACTIVE', async () => {
+    const authContext = await createTestUserAndSession({ isActive: false });
+    registerCreatedUser(authContext.user.id);
+
+    const res = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Origin': env.CORS_ORIGIN,
+        'Cookie': `refresh_token=${authContext.rawRefreshToken}`
+      }
+    });
+
+    assert.equal(res.status, 401);
+    const body = await res.json();
+    assert.equal(body.error.code, 'USER_INACTIVE');
+  });
+
+  // 19. Exact-ID test cleanup and preservation of all seed records
   test('Stage C: Verifies all original seed data counts remain completely untouched', async () => {
     const identities = await query('SELECT COUNT(*)::int AS count FROM identities');
     const applications = await query('SELECT COUNT(*)::int AS count FROM applications');
