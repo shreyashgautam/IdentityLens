@@ -12,9 +12,16 @@ export const errorHandlerMiddleware = (err, req, res, next) => {
     : err.message || 'An unexpected server failure occurred';
 
   // Log error on server without leaking internal stack to client
-  console.error(`[${req.id || 'NO_REQ_ID'}] ${err.name || 'Error'}: ${err.message}`);
-  if (status === 500 && err.stack) {
-    console.error(err.stack);
+  // (Skip routine unauthenticated refresh probes to prevent console log pollution)
+  if (code !== 'NO_REFRESH_TOKEN') {
+    if (status >= 500) {
+      console.error(`[${req.id || 'NO_REQ_ID'}] ${err.name || 'Error'}: ${err.message}`);
+      if (err.stack) {
+        console.error(err.stack);
+      }
+    } else {
+      console.warn(`[${req.id || 'NO_REQ_ID'}] ${err.name || 'Notice'} (${status}): ${err.message}`);
+    }
   }
 
   return errorResponse(res, {

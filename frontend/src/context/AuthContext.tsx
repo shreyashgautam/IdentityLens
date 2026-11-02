@@ -16,7 +16,7 @@ import {
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<LoginResult>;
   verifyOtp: (mfaToken: string, otp: string) => Promise<{ accessToken: string; user: AuthUser }>;
-  resendOtp: (mfaToken: string) => Promise<{ mfaToken: string; expiresIn: number; message: string }>;
+  resendOtp: (mfaToken: string) => Promise<{ mfaToken: string; expiresIn: number; otpCode?: string; message: string }>;
   register: (organization: string, email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -57,19 +57,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
 
-        // 2. Slow path: Silently rotate refresh token via HttpOnly cookie
-        const refreshResult = await refreshApi();
-        if (refreshResult?.accessToken) {
-          setAccessToken(refreshResult.accessToken);
-          const meData = await meApi();
-          if (isMounted) {
-            setState({
-              user: meData.user,
-              isAuthenticated: true,
-              isLoading: false,
-              error: null
-            });
-            return;
+        // 2. Slow path: Silently rotate refresh token via HttpOnly cookie only if user previously authenticated
+        const hadPriorSession = sessionStorage.getItem('identitylens_has_session') === 'true' || !!getAccessToken();
+        if (hadPriorSession) {
+          const refreshResult = await refreshApi();
+          if (refreshResult?.accessToken) {
+            setAccessToken(refreshResult.accessToken);
+            sessionStorage.setItem('identitylens_has_session', 'true');
+            const meData = await meApi();
+            if (isMounted) {
+              setState({
+                user: meData.user,
+                isAuthenticated: true,
+                isLoading: false,
+                error: null
+              });
+              return;
+            }
           }
         }
       } catch {
@@ -130,6 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const data = await verifyOtpApi(mfaToken, otp);
       setAccessToken(data.accessToken);
+      sessionStorage.setItem('identitylens_has_session', 'true');
       setState({
         user: data.user,
         isAuthenticated: true,
@@ -163,6 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const data = await registerApi({ organization, email, password, displayName });
       setAccessToken(data.accessToken);
+      sessionStorage.setItem('identitylens_has_session', 'true');
       setState({
         user: data.user,
         isAuthenticated: true,
@@ -187,6 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await logoutApi();
     } finally {
       setAccessToken(null);
+      sessionStorage.removeItem('identitylens_has_session');
       setState({
         user: null,
         isAuthenticated: false,

@@ -2788,8 +2788,86 @@ html, body {
   font-size: 13px;
   font-weight: 600;
   color: #0F172A;
-  margin: 12px 0 16px 0;
+  margin: 12px 0 8px 0;
   letter-spacing: -0.01em;
+}
+
+.stitch-otp-callout {
+  margin: 12px 0 18px 0;
+  padding: 12px 14px;
+  background-color: #F0F9FF;
+  border: 1px solid #BAE6FD;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stitch-otp-callout:hover {
+  background-color: #E0F2FE;
+  border-color: #7DD3FC;
+}
+
+.stitch-otp-callout-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.stitch-otp-callout-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  background-color: #0284C7;
+  color: #FFFFFF;
+  border-radius: 4px;
+}
+
+.stitch-otp-display-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.stitch-otp-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748B;
+}
+
+.stitch-otp-code-highlight {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.15em;
+  color: #0F172A;
+}
+
+.stitch-otp-autofill-btn {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0284C7;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.stitch-otp-callout-hint {
+  font-size: 11px;
+  color: #0369A1;
+  margin: 8px 0 0 0;
+  line-height: 1.4;
 }
 
 .stitch-mfa-resend-row {

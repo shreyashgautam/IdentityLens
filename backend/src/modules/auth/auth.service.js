@@ -521,7 +521,8 @@ export const loginWithCredentials = async ({ email, password, userAgent = null, 
       mfaToken,
       email: user.email,
       maskedEmail,
-      expiresIn: 600
+      expiresIn: 600,
+      otpCode: env.NODE_ENV !== 'production' ? otpCode : undefined
     };
   } catch (err) {
     try {
@@ -728,6 +729,7 @@ export const resendOtp = async ({ mfaToken, ipAddress = null }) => {
     return {
       mfaToken: newMfaToken,
       expiresIn: 600,
+      otpCode: env.NODE_ENV !== 'production' ? otpCode : undefined,
       message: 'A new security verification code has been dispatched.'
     };
   } catch (err) {

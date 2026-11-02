@@ -99,6 +99,7 @@ export interface LoginResult {
   email?: string;
   maskedEmail?: string;
   expiresIn?: number;
+  otpCode?: string;
   accessToken?: string;
   user?: AuthUser;
 }
@@ -143,7 +144,7 @@ export async function verifyOtpApi(
 
 export async function resendOtpApi(
   mfaToken: string
-): Promise<{ mfaToken: string; expiresIn: number; message: string }> {
+): Promise<{ mfaToken: string; expiresIn: number; otpCode?: string; message: string }> {
   const res = await apiFetch('/api/v1/auth/resend-otp', {
     method: 'POST',
     body: JSON.stringify({ mfaToken })

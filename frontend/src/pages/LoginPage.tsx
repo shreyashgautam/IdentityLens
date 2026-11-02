@@ -18,6 +18,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
   const [isMfaStep, setIsMfaStep] = useState(false);
   const [mfaToken, setMfaToken] = useState<string>('');
   const [maskedEmail, setMaskedEmail] = useState<string>('');
+  const [activeOtp, setActiveOtp] = useState<string>('');
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendSuccess, setResendSuccess] = useState<string | null>(null);
@@ -54,6 +55,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
         setIsMfaStep(true);
         setMfaToken(result.mfaToken);
         setMaskedEmail(result.maskedEmail || result.email || trimmedEmail);
+        setActiveOtp(result.otpCode || '');
         setOtpDigits(['', '', '', '', '', '']);
         setResendCooldown(30);
         setTimeout(() => {
@@ -65,6 +67,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleAutoFillOtp = (code: string) => {
+    if (!code || code.length !== 6) return;
+    const digits = code.split('');
+    setOtpDigits(digits);
+    handleOtpSubmit(undefined, code);
   };
 
   const handleOtpSubmit = async (e?: React.FormEvent, customOtp?: string) => {
@@ -152,6 +161,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
       if (res.mfaToken) {
         setMfaToken(res.mfaToken);
       }
+      if ((res as unknown as { otpCode?: string }).otpCode) {
+        setActiveOtp((res as unknown as { otpCode?: string }).otpCode || '');
+      }
       setResendCooldown(30);
       setResendSuccess('A new 6-digit security code has been sent to your email.');
     } catch {
@@ -166,6 +178,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
     setLocalError(null);
     clearError();
     setResendSuccess(null);
+    setActiveOtp('');
     setOtpDigits(['', '', '', '', '', '']);
   };
 
@@ -397,6 +410,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
                   <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0284C7' }}>mail</span>
                   <span>{maskedEmail}</span>
                 </div>
+
+                {activeOtp && (
+                  <div className="stitch-otp-callout">
+                    <div className="stitch-otp-callout-header">
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#0284C7' }}>mark_email_read</span>
+                      <span style={{ fontWeight: 600, color: '#0F172A', fontSize: '12px' }}>Security Code Dispatched</span>
+                      <span className="stitch-otp-callout-badge">Sync Code</span>
+                    </div>
+                    <div className="stitch-otp-display-row" onClick={() => handleAutoFillOtp(activeOtp)}>
+                      <span className="stitch-otp-label">Code:</span>
+                      <code className="stitch-otp-code-highlight">{activeOtp}</code>
+                      <button type="button" className="stitch-otp-autofill-btn">
+                        Auto-Fill &amp; Verify →
+                      </button>
+                    </div>
+                    <p className="stitch-otp-callout-hint">
+                      Sent to <strong>{maskedEmail}</strong>. Click above to auto-fill or enter the 6 digits below.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Alerts */}

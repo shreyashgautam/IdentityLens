@@ -1121,10 +1121,20 @@ describe('Milestone 6 — Phase 1 Stage B: Firebase Authentication & Token Excha
     assert.equal(body.error.code, 'USER_INACTIVE');
   });
 
-  // 19. POST /api/v1/auth/login succeeds and returns access JWT and sets refresh cookie
-  test('POST /api/v1/auth/login authenticates corporate email and establishes session', async () => {
+  // 19. POST /api/v1/auth/login succeeds for registered user and returns access JWT and sets refresh cookie
+  // 19. POST /api/v1/auth/login challenges with 2FA and POST /api/v1/auth/verify-otp completes session
+  test('POST /api/v1/auth/login initiates 2FA and verify-otp establishes authenticated session', async () => {
     const testEmail = `operator-${crypto.randomBytes(4).toString('hex')}@identitylens.io`;
 
+    // Pre-register user in DB
+    const created = await query(`
+      INSERT INTO users (firebase_uid, email, provider, role, email_verified, is_active)
+      VALUES ($1, $2, 'password', 'viewer', true, true)
+      RETURNING id;
+    `, [`local-${crypto.randomUUID()}`, testEmail]);
+    registerCreatedUser(created.rows[0].id);
+
+    // Step 1: Initiate Login -> receives 2FA MFA challenge
     const res = await fetch(`${baseUrl}/api/v1/auth/login`, {
       method: 'POST',
       headers: {
@@ -1139,14 +1149,49 @@ describe('Milestone 6 — Phase 1 Stage B: Firebase Authentication & Token Excha
 
     assert.equal(res.status, 200);
     const body = await res.json();
-    assert.equal(body.data.user.email, testEmail);
-    assert.ok(body.data.accessToken);
-    assert.equal(body.data.tokenType, 'Bearer');
+    assert.equal(body.data.mfaRequired, true);
+    assert.ok(body.data.mfaToken);
+    assert.equal(body.data.email, testEmail);
 
-    registerCreatedUser(body.data.user.id);
+    const mfaToken = body.data.mfaToken;
+
+    // Step 2: Attempt wrong OTP -> rejects with 401 INVALID_OTP
+    const badOtpRes = await fetch(`${baseUrl}/api/v1/auth/verify-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': env.CORS_ORIGIN
+      },
+      body: JSON.stringify({
+        mfaToken,
+        otp: '000000'
+      })
+    });
+    assert.equal(badOtpRes.status, 401);
+    const badOtpBody = await badOtpRes.json();
+    assert.equal(badOtpBody.error.code, 'INVALID_OTP');
+
+    // Step 3: Verify with correct OTP ('123456') -> succeeds and issues session & JWT
+    const verifyRes = await fetch(`${baseUrl}/api/v1/auth/verify-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': env.CORS_ORIGIN
+      },
+      body: JSON.stringify({
+        mfaToken,
+        otp: '123456'
+      })
+    });
+
+    assert.equal(verifyRes.status, 200);
+    const verifyBody = await verifyRes.json();
+    assert.equal(verifyBody.data.user.email, testEmail);
+    assert.ok(verifyBody.data.accessToken);
+    assert.equal(verifyBody.data.tokenType, 'Bearer');
 
     // Verify Set-Cookie header contains HttpOnly refresh token
-    const cookieHeader = res.headers.get('set-cookie');
+    const cookieHeader = verifyRes.headers.get('set-cookie');
     assert.ok(cookieHeader);
     assert.ok(cookieHeader.includes('refresh_token='));
     assert.ok(cookieHeader.toLowerCase().includes('httponly'));
@@ -1155,12 +1200,49 @@ describe('Milestone 6 — Phase 1 Stage B: Firebase Authentication & Token Excha
     const meRes = await fetch(`${baseUrl}/api/v1/auth/me`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${body.data.accessToken}`
+        'Authorization': `Bearer ${verifyBody.data.accessToken}`
       }
     });
     assert.equal(meRes.status, 200);
     const meBody = await meRes.json();
     assert.equal(meBody.data.user.email, testEmail);
+
+    // Step 4: Re-using the same OTP code is blocked with 401 OTP_ALREADY_USED
+    const replayRes = await fetch(`${baseUrl}/api/v1/auth/verify-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': env.CORS_ORIGIN
+      },
+      body: JSON.stringify({
+        mfaToken,
+        otp: '123456'
+      })
+    });
+    assert.equal(replayRes.status, 401);
+    const replayBody = await replayRes.json();
+    assert.equal(replayBody.error.code, 'OTP_ALREADY_USED');
+  });
+
+  // 19b. POST /api/v1/auth/login rejects unregistered user with 401 INVALID_CREDENTIALS
+  test('POST /api/v1/auth/login rejects unregistered user with 401 INVALID_CREDENTIALS', async () => {
+    const unregisteredEmail = `unregistered-${crypto.randomBytes(4).toString('hex')}@identitylens.io`;
+
+    const res = await fetch(`${baseUrl}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': env.CORS_ORIGIN
+      },
+      body: JSON.stringify({
+        email: unregisteredEmail,
+        password: 'Password123!'
+      })
+    });
+
+    assert.equal(res.status, 401);
+    const body = await res.json();
+    assert.equal(body.error.code, 'INVALID_CREDENTIALS');
   });
 
   // 20. GET /api/v1/auth/me rejects request without token
