@@ -3,9 +3,20 @@ import * as authController from './auth.controller.js';
 import { validate } from '../../middlewares/validate.js';
 import { verifyCsrfOrigin } from '../../middlewares/csrf.js';
 import { authenticate } from '../../middlewares/auth.js';
-import { exchangeBodySchema, loginBodySchema } from './auth.validation.js';
+import { exchangeBodySchema, loginBodySchema, registerBodySchema } from './auth.validation.js';
 
 const router = Router();
+
+/**
+ * POST /api/v1/auth/register
+ * Registers a new organization and admin user, issuing access JWT and HttpOnly refresh cookie.
+ */
+router.post(
+  '/register',
+  verifyCsrfOrigin,
+  validate({ body: registerBodySchema }),
+  authController.register
+);
 
 /**
  * POST /api/v1/auth/login

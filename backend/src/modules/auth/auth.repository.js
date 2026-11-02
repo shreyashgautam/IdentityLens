@@ -63,6 +63,7 @@ export const createUser = async (client, {
   firebaseUid,
   email,
   provider = 'password',
+  role = 'viewer',
   emailVerified = false,
   firebaseTokensValidAfter = null
 }) => {
@@ -79,7 +80,7 @@ export const createUser = async (client, {
       firebase_tokens_valid_after,
       created_at,
       updated_at
-    ) VALUES ($1, $2, $3, 'viewer', $4, TRUE, 1, NOW(), $5, NOW(), NOW())
+    ) VALUES ($1, $2, $3, $4, $5, TRUE, 1, NOW(), $6, NOW(), NOW())
     ON CONFLICT (firebase_uid) DO UPDATE
     SET updated_at = NOW()
     RETURNING id, firebase_uid, email, provider, role, email_verified, is_active,
@@ -90,6 +91,7 @@ export const createUser = async (client, {
     firebaseUid,
     email,
     provider,
+    role,
     emailVerified,
     firebaseTokensValidAfter ? new Date(firebaseTokensValidAfter) : null
   ];

@@ -213,6 +213,50 @@ export const login = async (req, res, next) => {
 };
 
 /**
+ * POST /api/v1/auth/register
+ * Registers a new organization and admin user, issuing access JWT and HttpOnly refresh cookie.
+ */
+export const register = async (req, res, next) => {
+  try {
+    const { organization, email, password, displayName } = req.validatedBody || req.body;
+    const userAgent = req.headers['user-agent'] || null;
+    const ipAddress = req.ip || req.socket?.remoteAddress || null;
+
+    const {
+      accessToken,
+      expiresIn,
+      user,
+      rawRefreshToken,
+      expiresAt
+    } = await authService.registerWithCredentials({
+      organization,
+      email,
+      password,
+      displayName,
+      userAgent,
+      ipAddress
+    });
+
+    res.cookie('refresh_token', rawRefreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/api/v1/auth',
+      expires: expiresAt
+    });
+
+    return successResponse(res, {
+      accessToken,
+      tokenType: 'Bearer',
+      expiresIn,
+      user
+    }, { status: 201 });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * GET /api/v1/auth/me
  * Retrieves current authenticated user context and active session identifier.
  */

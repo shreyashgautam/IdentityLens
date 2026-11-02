@@ -1,4 +1,4 @@
-import { env } from '../config/env.js';
+import { isOriginAllowed } from './cors.js';
 
 /**
  * CSRF / Origin Validation Middleware
@@ -22,15 +22,12 @@ export const verifyCsrfOrigin = (req, res, next) => {
     return next(error);
   }
 
-  // If origin is present, it must match configured CORS_ORIGIN
-  if (origin) {
-    const normalize = (url) => url.replace(/\/$/, '');
-    if (normalize(origin) !== normalize(env.CORS_ORIGIN)) {
-      const error = new Error('Request origin is not allowed.');
-      error.status = 403;
-      error.code = 'FORBIDDEN_ORIGIN';
-      return next(error);
-    }
+  // If origin is present, validate against allowed origins
+  if (origin && !isOriginAllowed(origin)) {
+    const error = new Error('Request origin is not allowed.');
+    error.status = 403;
+    error.code = 'FORBIDDEN_ORIGIN';
+    return next(error);
   }
 
   next();

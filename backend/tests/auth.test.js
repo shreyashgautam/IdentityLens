@@ -1173,7 +1173,35 @@ describe('Milestone 6 — Phase 1 Stage B: Firebase Authentication & Token Excha
     assert.equal(body.error.code, 'MISSING_TOKEN');
   });
 
-  // 21. Exact-ID test cleanup and preservation of all seed records
+  // 21. POST /api/v1/auth/register registers organization and admin user
+  test('POST /api/v1/auth/register creates organization and returns auth context with cookie', async () => {
+    const regRes = await fetch(`${baseUrl}/api/v1/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': env.CORS_ORIGIN
+      },
+      body: JSON.stringify({
+        organization: 'Acme Security Corp',
+        email: 'shreyashgautam2007',
+        password: 'Password123!'
+      })
+    });
+
+    assert.equal(regRes.status, 201);
+    const regBody = await regRes.json();
+    assert.ok(regBody.data.accessToken);
+    assert.equal(regBody.data.user.email, 'shreyashgautam2007@identitylens.io');
+    assert.equal(regBody.data.user.role, 'admin');
+    assert.equal(regBody.data.user.organization, 'Acme Security Corp');
+
+    registerCreatedUser(regBody.data.user.id);
+
+    const cookie = regRes.headers.get('set-cookie');
+    assert.ok(cookie && cookie.includes('refresh_token='));
+  });
+
+  // 22. Exact-ID test cleanup and preservation of all seed records
   test('Stage C: Verifies all original seed data counts remain completely untouched', async () => {
     const identities = await query('SELECT COUNT(*)::int AS count FROM identities');
     const applications = await query('SELECT COUNT(*)::int AS count FROM applications');

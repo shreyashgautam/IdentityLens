@@ -871,5 +871,40 @@ Dashboard fetches live inventory (e.g. fetchDashboardData() -> apiFetch('/identi
              └─ AuthContext resets to unauthenticated state, navigating user to LoginPage.
 ```
 
+---
+
+## 11. Milestone 6 Stage E: Multi-Tenant Organization Registration Flow
+
+```
+=========================================================================================
+                           ORGANIZATION REGISTRATION FLOW
+=========================================================================================
+User enters Organization Name, Email/Username, Password on RegisterPage -> Clicks Submit
+  │
+  ▼
+1. RegisterPage.tsx:
+   ├─ Validates organization name (min 2 chars), email/username, password match.
+   ├─ Dispatches: register(organization, email, password, displayName) from useAuth().
+   │
+2. AuthContext.tsx -> api.ts:registerApi():
+   ├─ POST /api/v1/auth/register { organization, email, password, displayName }
+   │
+3. Backend (auth.routes.js -> auth.controller.js -> auth.service.js):
+   ├─ Zod validation: transforms username 'shreyashgautam2007' -> 'shreyashgautam2007@identitylens.io'.
+   ├─ Checks uniqueness: rejects duplicate emails with 409 Conflict.
+   ├─ Creates administrator user in PostgreSQL `users` table with role = 'admin'.
+   ├─ Records audit log entry with action = 'ORGANIZATION_REGISTERED'.
+   ├─ Creates session in `user_sessions`, hashes refresh token with SHA-256.
+   ├─ Sets HttpOnly SameSite=Lax cookie: refresh_token=<sessionId>.<secret>.
+   ├─ Issues access JWT (role: 'admin', 15m expiration).
+   ├─ Returns 201 Created { accessToken, user: { id, email, role: 'admin', organization } }.
+   │
+4. Frontend Client:
+   ├─ api.ts stores accessToken in memory and sessionStorage.
+   ├─ AuthContext sets user context and isAuthenticated = true.
+   └─ Transition to Dashboard with immediate Live DB access!
+```
+
+
 
 

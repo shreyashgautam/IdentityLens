@@ -9,16 +9,31 @@ import type { AuthUser } from '../types/auth';
 
 export const API_BASE = 'http://localhost:5001';
 
-// In-memory access token storage (avoids local storage XSS vulnerabilities)
-let currentAccessToken: string | null = null;
+// In-memory access token storage backed by sessionStorage for seamless tab page refreshes
+let currentAccessToken: string | null = (typeof window !== 'undefined')
+  ? sessionStorage.getItem('identitylens_access_token')
+  : null;
 
 export const setAccessToken = (token: string | null): void => {
   currentAccessToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      sessionStorage.setItem('identitylens_access_token', token);
+    } else {
+      sessionStorage.removeItem('identitylens_access_token');
+    }
+  }
 };
 
 export const getAccessToken = (): string | null => {
+  if (!currentAccessToken && typeof window !== 'undefined') {
+    currentAccessToken = sessionStorage.getItem('identitylens_access_token');
+  }
   return currentAccessToken;
 };
+
+// In-flight refresh promise singleton to prevent race conditions and concurrent rotation replays
+let inFlightRefreshPromise: Promise<{ accessToken: string } | null> | null = null;
 
 export interface DashboardApiResponse {
   isLiveBackend: boolean;
@@ -96,19 +111,55 @@ export async function loginApi(
 }
 
 export async function refreshApi(): Promise<{ accessToken: string } | null> {
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include'
-    });
-
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.data;
-  } catch {
-    return null;
+  if (inFlightRefreshPromise) {
+    return inFlightRefreshPromise;
   }
+
+  inFlightRefreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+
+      if (!res.ok) return null;
+      const json = await res.json();
+      if (json.data?.accessToken) {
+        setAccessToken(json.data.accessToken);
+      }
+      return json.data || null;
+    } catch {
+      return null;
+    } finally {
+      inFlightRefreshPromise = null;
+    }
+  })();
+
+  return inFlightRefreshPromise;
+}
+
+export async function registerApi(data: {
+  organization: string;
+  email: string;
+  password: string;
+  displayName?: string;
+}): Promise<{ accessToken: string; user: AuthUser }> {
+  const res = await apiFetch('/api/v1/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json.error?.message || 'Registration failed. Please check your details.');
+  }
+
+  if (json.data?.accessToken) {
+    setAccessToken(json.data.accessToken);
+  }
+
+  return json.data;
 }
 
 export async function meApi(): Promise<{ user: AuthUser; sessionId: string }> {

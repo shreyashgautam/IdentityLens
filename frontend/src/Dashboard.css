@@ -2237,6 +2237,33 @@ html, body {
   cursor: not-allowed;
 }
 
+.auth-switch-prompt {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.auth-switch-link {
+  background: none;
+  border: none;
+  color: #3157D5;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  transition: color 0.15s ease;
+}
+
+.auth-switch-link:hover {
+  color: #1e3a8a;
+}
+
 .login-footer {
   text-align: center;
 }
@@ -2347,8 +2374,5 @@ html, body {
 .dropdown-logout-btn:hover {
   color: #DC2626;
   background-color: rgba(220, 38, 38, 0.08);
-}
-    gap: 2px;
-  }
 }
 

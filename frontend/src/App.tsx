@@ -4,10 +4,12 @@ import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 import './Dashboard.css';
 
 function AppContent() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const [authView, setAuthView] = useState<'login' | 'register'>('login');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('identitylens_theme') as 'light' | 'dark') || 'light';
   });
@@ -50,9 +52,12 @@ function AppContent() {
     );
   }
 
-  // If unauthenticated, show the Login page
+  // If unauthenticated, show either Login or Register page
   if (!isAuthenticated) {
-    return <LoginPage />;
+    if (authView === 'register') {
+      return <RegisterPage onNavigateToLogin={() => setAuthView('login')} />;
+    }
+    return <LoginPage onNavigateToRegister={() => setAuthView('register')} />;
   }
 
   // If authenticated, render the enterprise application shell

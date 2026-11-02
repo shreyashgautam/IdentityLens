@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { AuthState } from '../types/auth';
-import { loginApi, logoutApi, refreshApi, meApi, setAccessToken } from '../services/api';
+import { loginApi, registerApi, logoutApi, refreshApi, meApi, setAccessToken, getAccessToken } from '../services/api';
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
+  register: (organization: string, email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
 }
@@ -18,12 +19,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     error: null
   });
 
-  // Silent session restoration on application startup via HttpOnly refresh cookie
+  // Silent session restoration on application startup/reload
   useEffect(() => {
     let isMounted = true;
 
     async function restoreSession() {
       try {
+        // 1. Fast path: If session token exists in sessionStorage, verify active session
+        const existingToken = getAccessToken();
+        if (existingToken) {
+          try {
+            const meData = await meApi();
+            if (isMounted) {
+              setState({
+                user: meData.user,
+                isAuthenticated: true,
+                isLoading: false,
+                error: null
+              });
+              return;
+            }
+          } catch {
+            // Existing token expired or invalid; fall through to refresh rotation
+          }
+        }
+
+        // 2. Slow path: Silently rotate refresh token via HttpOnly cookie
         const refreshResult = await refreshApi();
         if (refreshResult?.accessToken) {
           setAccessToken(refreshResult.accessToken);
@@ -84,6 +105,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const register = useCallback(async (organization: string, email: string, password: string, displayName?: string) => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const data = await registerApi({ organization, email, password, displayName });
+      setAccessToken(data.accessToken);
+      setState({
+        user: data.user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Registration failed. Please try again.';
+      setAccessToken(null);
+      setState({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: message
+      });
+      throw err;
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await logoutApi();
@@ -107,6 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         ...state,
         login,
+        register,
         logout,
         clearError
       }}

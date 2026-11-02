@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-export const LoginPage: React.FC = () => {
+interface LoginPageProps {
+  onNavigateToRegister?: () => void;
+}
+
+export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) => {
   const { login, error, clearError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -86,15 +90,15 @@ export const LoginPage: React.FC = () => {
           <form className="login-form" onSubmit={handleSubmit} noValidate>
             <div className="form-group">
               <label htmlFor="email" className="form-label">
-                Corporate Email Address
+                Work Email or Username
               </label>
               <div className="input-icon-wrapper">
-                <span className="material-symbols-outlined input-leading-icon">mail</span>
+                <span className="material-symbols-outlined input-leading-icon">person</span>
                 <input
                   id="email"
-                  type="email"
+                  type="text"
                   className="form-input"
-                  placeholder="name@enterprise.io"
+                  placeholder="shreyashgautam2007 or name@enterprise.io"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
@@ -165,6 +169,20 @@ export const LoginPage: React.FC = () => {
                 </>
               )}
             </button>
+
+            {/* Switch to Register */}
+            {onNavigateToRegister && (
+              <div className="auth-switch-prompt">
+                <span>New organization? </span>
+                <button
+                  type="button"
+                  className="auth-switch-link"
+                  onClick={onNavigateToRegister}
+                >
+                  Register your organization
+                </button>
+              </div>
+            )}
           </form>
         </div>
 

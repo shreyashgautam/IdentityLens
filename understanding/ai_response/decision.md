@@ -457,4 +457,23 @@ This document logs all key architectural, technical, library, and design decisio
   - *Stateless JWT-Only Validation*: Rejected because pure JWTs cannot be revoked without expiration, leaving window for compromised tokens.
   - *Grace Period for Refresh Rotation*: Rejected to enforce strict zero-trust replay detection as required by the security threat model.
 
+---
+
+### Decision 25: Organization Registration, Flexible Username Authentication, and Session Refresh Concurrency Protection
+
+- **Decision**:
+  1. **Dynamic Localhost CORS & CSRF Compatibility**:
+     - `corsMiddleware` and `verifyCsrfOrigin` allow all development loopback origins (`http://localhost:*`) when `NODE_ENV === 'development'`, preventing `403 FORBIDDEN_ORIGIN` if Vite binds to alternative ports (e.g. 5174, 5175).
+  2. **Flexible Email & Username Validation**:
+     - `loginBodySchema` and `registerBodySchema` accept standard corporate emails as well as usernames (e.g. `shreyashgautam2007`), transforming non-domain strings automatically into lowercased `@identitylens.io` entities.
+  3. **Multi-Tenant Organization Registration (`POST /api/v1/auth/register`)**:
+     - Provisions a new organization and administrator account in PostgreSQL with `role: 'admin'`, durable device session, single-use refresh token, and signed access JWT.
+  4. **Client-Side Refresh Mutex (Singleton Promise) & SessionStorage Persistence**:
+     - Stores access tokens in `sessionStorage` (`identitylens_access_token`) so that browser tab page reloads do not destroy the session or trigger duplicate refresh attempts.
+     - `refreshApi` encapsulates an in-flight Promise singleton (`inFlightRefreshPromise`), guaranteeing that parallel 401 retries or React StrictMode cycles share a single network call and never send consumed refresh tokens over the wire.
+- **Why It Is Needed**:
+  - Resolves the `Refresh token reuse detected` session revocation error caused by concurrent refresh calls on page reloads.
+  - Gives users flexible credentials and a streamlined registration flow to create their organization tenant.
+- **Accepted Trade-Off**: Access token stored in `sessionStorage` is scoped to the active browser tab, providing persistence across reloads while still auto-clearing upon tab close.
+
 

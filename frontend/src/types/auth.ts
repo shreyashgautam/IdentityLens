@@ -4,6 +4,8 @@ export interface AuthUser {
   role: 'viewer' | 'admin';
   emailVerified: boolean;
   provider: string;
+  organization?: string;
+  displayName?: string;
 }
 
 export interface AuthState {
