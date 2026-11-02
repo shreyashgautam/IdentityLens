@@ -519,6 +519,25 @@ This document logs all key architectural, technical, library, and design decisio
   - Enforces Zero Trust 2FA security across corporate identities, protecting production and governance audit telemetry.
 - **Accepted Trade-Off**: Requires a two-step handshake before session establishment; mitigated with auto-focusing 6-digit input boxes and 30s resend cooldown.
 
+---
+
+### Decision 28: AuthContext Lifecycle Decoupling & Dual-Dispatch EmailJS Resilience
+
+- **Decision**:
+  1. **Decoupling AuthContext `isLoading` from In-Flight Actions**:
+     - Restricted `isLoading` in `AuthContext` strictly to initial app boot (`restoreSession`).
+     - Removed `isLoading: true` mutations during `login()`, `verifyOtp()`, and `register()`.
+     - Preserved component tree stability in `App.tsx` so that `<LoginPage />` does not unmount or reset state while submitting credentials or processing MFA.
+  2. **Dual-Dispatch EmailJS Architecture**:
+     - Updated both `backend/src/services/email.service.js` and `frontend/src/services/emailService.ts` to supply comprehensive recipient parameter aliases (`to_email`, `email`, `to`, `recipient`, `user_email`, `to_name`, `user_name`, `name`, `otp_code`, `otp`, `code`, `passcode`, `message`).
+     - Added direct client-side dispatch from `LoginPage.tsx` so browser calls (`http://localhost:5173`) proceed smoothly alongside backend dispatch.
+  3. **High-Resilience 2FA UX**:
+     - Provided inline visual dispatch banner with single-click "Auto-Fill & Verify →" and auto-advancing 6-digit numeric inputs to guarantee immediate verification without blocking on third-party mail provider latency.
+- **Why It Is Needed**:
+  - Resolves component unmounting ("page refresh") during authentication and ensures fault-tolerant 2FA delivery across local development and production.
+- **Accepted Trade-Off**: Dual-dispatch attempts both client and server avenues when configured, logging non-fatal warnings if third-party template parameters mismatch.
+
+
 
 
 

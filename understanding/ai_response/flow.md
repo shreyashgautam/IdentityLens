@@ -905,6 +905,41 @@ User enters Organization Name, Email/Username, Password on RegisterPage -> Click
    └─ Transition to Dashboard with immediate Live DB access!
 ```
 
+---
+
+## 22. Two-Factor Authentication (2FA) & Dual-Dispatch Email Architecture
+
+```
+=========================================================================================
+                       TWO-FACTOR AUTHENTICATION & DISPATCH FLOW
+=========================================================================================
+User enters registered credentials on LoginPage.tsx
+  │
+  ▼
+1. LoginPage.tsx (Submit Handler):
+   ├─ Calls login(trimmedEmail, password) via useAuth().
+   ├─ AuthContext invokes loginApi() WITHOUT setting global isLoading: true (prevents unmounting).
+   │
+2. Backend (POST /api/v1/auth/login):
+   ├─ Validates password against bcrypt hash in PostgreSQL users table.
+   ├─ Generates 6-digit numeric OTP and mfaToken.
+   ├─ Hashes OTP with SHA-256 and stores in otp_verifications with 10-minute expiry.
+   ├─ Dispatches sendOtpEmail() with full parameter aliases via EmailJS.
+   ├─ Returns 200 OK { mfaRequired: true, mfaToken, maskedEmail, expiresIn: 600, otpCode }.
+   │
+3. Frontend State Transition:
+   ├─ LoginPage sets isMfaStep = true, displaying 2FA challenge screen.
+   ├─ Concurrently invokes sendOtpEmailClient() from browser window to bypass non-browser 403 blocks.
+   ├─ Displays active OTP code in security banner with one-click "Auto-Fill & Verify →" button.
+   │
+4. Verification (POST /api/v1/auth/verify-otp):
+   ├─ User enters 6 digits or clicks Auto-Fill.
+   ├─ Backend validates OTP hash, checks expiry and attempts (< 5).
+   ├─ Consumes OTP atomically (consumed_at = NOW()).
+   ├─ Creates session in user_sessions, sets HttpOnly refresh cookie, and returns access JWT.
+   └─ AuthContext sets isAuthenticated = true -> User enters Dashboard seamlessly.
+```
+
 
 
 

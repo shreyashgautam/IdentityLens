@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { sendOtpEmailClient } from '../services/emailService';
 
 interface LoginPageProps {
   onNavigateToRegister?: () => void;
@@ -58,6 +59,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
         setActiveOtp(result.otpCode || '');
         setOtpDigits(['', '', '', '', '', '']);
         setResendCooldown(30);
+
+        // Attempt client-side direct dispatch from browser context
+        if (result.otpCode) {
+          sendOtpEmailClient({
+            to_email: trimmedEmail,
+            otp_code: result.otpCode,
+            user_name: trimmedEmail.split('@')[0]
+          }).catch((err) => console.warn('[Client Dispatch Warning]', err));
+        }
+
         setTimeout(() => {
           document.getElementById('otp-digit-0')?.focus();
         }, 100);
@@ -161,8 +172,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
       if (res.mfaToken) {
         setMfaToken(res.mfaToken);
       }
-      if ((res as unknown as { otpCode?: string }).otpCode) {
-        setActiveOtp((res as unknown as { otpCode?: string }).otpCode || '');
+      const newOtp = (res as unknown as { otpCode?: string }).otpCode;
+      if (newOtp) {
+        setActiveOtp(newOtp);
+        sendOtpEmailClient({
+          to_email: email.trim(),
+          otp_code: newOtp,
+          user_name: email.trim().split('@')[0]
+        }).catch((err) => console.warn('[Client Dispatch Warning]', err));
       }
       setResendCooldown(30);
       setResendSuccess('A new 6-digit security code has been sent to your email.');

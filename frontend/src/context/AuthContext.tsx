@@ -99,11 +99,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    setState((prev) => ({ ...prev, error: null }));
     try {
       const data = await loginApi(email, password);
       if (data.mfaRequired) {
-        setState((prev) => ({ ...prev, isLoading: false, error: null }));
         return data;
       }
       if (data.accessToken && data.user) {
@@ -130,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const verifyOtp = useCallback(async (mfaToken: string, otp: string) => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    setState((prev) => ({ ...prev, error: null }));
     try {
       const data = await verifyOtpApi(mfaToken, otp);
       setAccessToken(data.accessToken);
@@ -146,7 +145,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const message = err instanceof Error ? err.message : 'Invalid verification code. Please check and try again.';
       setState((prev) => ({
         ...prev,
-        isLoading: false,
         error: message
       }));
       throw err;
@@ -164,7 +162,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const register = useCallback(async (organization: string, email: string, password: string, displayName?: string) => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    setState((prev) => ({ ...prev, error: null }));
     try {
       const data = await registerApi({ organization, email, password, displayName });
       setAccessToken(data.accessToken);

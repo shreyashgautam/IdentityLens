@@ -44,8 +44,20 @@ export const sendOtpEmail = async ({ toEmail, otpCode, userName = '' }) => {
       user_id: publicKey,
       template_params: {
         to_email: toEmail,
-        otp_code: otpCode,
+        email: toEmail,
+        to: toEmail,
+        recipient: toEmail,
+        user_email: toEmail,
+        to_name: displayName,
         user_name: displayName,
+        name: displayName,
+        from_name: 'IdentityLens IAM',
+        reply_to: 'support@identitylens.io',
+        otp_code: otpCode,
+        otp: otpCode,
+        code: otpCode,
+        passcode: otpCode,
+        message: `Your IdentityLens 2FA security code is: ${otpCode}. Valid for 10 minutes.`,
         expiry_minutes: 10
       }
     };
@@ -85,4 +97,3 @@ export const sendOtpEmail = async ({ toEmail, otpCode, userName = '' }) => {
     };
   }
 };
-
