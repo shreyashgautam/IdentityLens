@@ -7,8 +7,8 @@ interface LoginPageProps {
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) => {
   const { login, error, clearError } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('elena.vance@enterprise-sec.io');
+  const [password, setPassword] = useState('Password123!');
   const [showPassword, setShowPassword] = useState(false);
   const [hardwareMfa, setHardwareMfa] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,11 +27,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
 
     if (!password) {
       setLocalError('Please enter your password or passkey.');
-      return;
-    }
-
-    if (password.length < 6) {
-      setLocalError('Password must be at least 6 characters.');
       return;
     }
 
@@ -55,14 +50,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
     <div className="stitch-split-auth-container">
       {/* LEFT HALF: Enterprise Login Form (50% on desktop) */}
       <div className="stitch-auth-left-panel">
-        {/* Top Bar: Brand & System Descriptor */}
+        {/* Top Bar: Brand & Environment Tag */}
         <div className="stitch-auth-top-bar">
           <div className="stitch-brand-cluster">
             <div className="stitch-brand-badge-id">ID</div>
             <div>
-              <div className="stitch-brand-title-row">
-                <span className="stitch-brand-title">IdentityLens</span>
-              </div>
+              <div className="stitch-brand-title">IdentityLens</div>
               <p className="stitch-brand-subtitle">Cloud Identity Governance Platform</p>
             </div>
           </div>
@@ -85,8 +78,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
               className="stitch-sso-btn-primary"
               onClick={() => handleSsoClick('Okta Workforce')}
             >
-              <svg className="w-4 h-4 text-[#007DC1]" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#007DC1" strokeWidth="3.5">
+                <circle cx="12" cy="12" r="9" />
               </svg>
               <span>Single Sign-On with <strong>Okta Workforce</strong></span>
             </button>
@@ -97,7 +90,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
                 className="stitch-sso-btn-secondary"
                 onClick={() => handleSsoClick('Microsoft Entra')}
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 23 23">
+                <svg width="14" height="14" viewBox="0 0 23 23">
                   <path fill="#f35325" d="M1 1h10v10H1z" />
                   <path fill="#81bc06" d="M12 1h10v10H12z" />
                   <path fill="#05a6f3" d="M1 12h10v10H1z" />
@@ -110,7 +103,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
                 className="stitch-sso-btn-secondary"
                 onClick={() => handleSsoClick('Google Workspace')}
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                <svg width="14" height="14" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
@@ -124,14 +117,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
           {/* Divider */}
           <div className="stitch-auth-divider">
             <div className="stitch-divider-line" />
-            <span className="stitch-divider-label">Or continue with IAM key</span>
+            <span className="stitch-divider-label">OR CONTINUE WITH IAM KEY</span>
             <div className="stitch-divider-line" />
           </div>
 
           {/* Error Alert */}
           {displayError && (
             <div className="stitch-auth-error-alert" role="alert">
-              <span className="material-symbols-outlined text-[18px]">error</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>error</span>
               <span className="stitch-error-text">{displayError}</span>
               <button
                 type="button"
@@ -142,7 +135,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
                 }}
                 aria-label="Dismiss error"
               >
-                <span className="material-symbols-outlined text-[16px]">close</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
               </button>
             </div>
           )}
@@ -158,7 +151,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
                   id="email"
                   type="text"
                   className="stitch-field-input"
-                  placeholder="shreyashgautam2007 or name@company.com"
+                  placeholder="name@company.com"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
@@ -186,7 +179,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   className="stitch-field-input font-mono"
-                  placeholder="Enter IAM credentials"
+                  placeholder="••••••••••••••••••••"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -232,13 +225,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
             >
               {isSubmitting ? (
                 <>
-                  <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
+                  <span className="material-symbols-outlined animate-spin" style={{ fontSize: '18px' }}>sync</span>
                   <span>Authenticating Identity Session...</span>
                 </>
               ) : (
                 <>
-                  <span>Authenticate Identity Session</span>
-                  <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                  <span>Authenticate Identity Session →</span>
                 </>
               )}
             </button>
@@ -295,7 +287,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
         {/* Main Showcase Container */}
         <div className="stitch-showcase-box">
           <div className="stitch-showcase-titles">
-            <span className="stitch-showcase-kicker">Identity Governance</span>
+            <span className="stitch-showcase-kicker">IDENTITY GOVERNANCE</span>
             <h2 className="stitch-showcase-heading">Continuous Identity &amp; Access Governance</h2>
             <p className="stitch-showcase-desc">
               Autonomous visibility and zero-trust controls across enterprise identity providers, service principals, and infrastructure assets.
@@ -316,7 +308,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) =>
             </div>
             <div className="stitch-metric-tile">
               <div className="stitch-metric-label">Uptime SLA</div>
-              <div className="stitch-metric-val text-emerald-400">99.98%</div>
+              <div className="stitch-metric-val" style={{ color: '#34D399' }}>99.98%</div>
               <div className="stitch-metric-sub">Certified</div>
             </div>
           </div>

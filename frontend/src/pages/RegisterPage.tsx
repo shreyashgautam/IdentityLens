@@ -54,7 +54,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
     try {
       await register(trimmedOrg, trimmedEmail, password, fullName.trim() || undefined);
     } catch {
-      // Error is set in AuthContext
+      // Error handled by AuthContext
     } finally {
       setIsSubmitting(false);
     }
@@ -65,18 +65,18 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
   return (
     <div className="stitch-split-auth-container">
       {/* LEFT PANEL: 50% dark slate-obsidian showcase matching Stitch */}
-      <div className="stitch-auth-right-panel lg:border-r lg:border-slate-800/80">
+      <div className="stitch-auth-right-panel stitch-reg-left-showcase">
         <div className="stitch-right-bg-grid" />
 
         {/* Top Header of Left Half */}
         <div className="stitch-right-header">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
-              <span className="material-symbols-outlined text-[20px]">verified_user</span>
+          <div className="stitch-brand-cluster-dark">
+            <div className="stitch-verified-badge">
+              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>verified_user</span>
             </div>
-            <span className="text-[18px] font-semibold tracking-tight text-white">IdentityLens</span>
+            <span className="stitch-brand-title-dark">IdentityLens</span>
           </div>
-          <span className="text-[11px] font-mono tracking-wider text-slate-400 uppercase bg-slate-900/80 px-2.5 py-1 rounded border border-slate-800">
+          <span className="stitch-tag-badge">
             Identity Governance / Onboarding
           </span>
         </div>
@@ -84,7 +84,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
         {/* Showcase Content */}
         <div className="stitch-showcase-box">
           <div className="stitch-showcase-titles">
-            <h1 className="text-[26px] sm:text-[30px] font-semibold text-white tracking-tight leading-snug">
+            <h1 className="stitch-showcase-heading">
               Continuous Identity &amp; Access Governance
             </h1>
             <p className="stitch-showcase-desc">
@@ -95,41 +95,39 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
           {/* 3 Metric Cards */}
           <div className="stitch-showcase-metrics-grid">
             <div className="stitch-metric-tile">
-              <div className="text-[24px] sm:text-[26px] font-bold text-white tracking-tight font-mono">3,420+</div>
-              <div className="text-[11px] text-slate-400 font-medium mt-1">Monitored Entities</div>
+              <div className="stitch-metric-val">3,420+</div>
+              <div className="stitch-metric-sub">Monitored Entities</div>
             </div>
             <div className="stitch-metric-tile">
-              <div className="text-[24px] sm:text-[26px] font-bold text-white tracking-tight font-mono">184</div>
-              <div className="text-[11px] text-slate-400 font-medium mt-1">Connected Apps</div>
+              <div className="stitch-metric-val">184</div>
+              <div className="stitch-metric-sub">Connected Apps</div>
             </div>
             <div className="stitch-metric-tile">
-              <div className="text-[24px] sm:text-[26px] font-bold text-emerald-400 tracking-tight font-mono">99.98%</div>
-              <div className="text-[11px] text-slate-400 font-medium mt-1">SLA Uptime</div>
+              <div className="stitch-metric-val" style={{ color: '#34D399' }}>99.98%</div>
+              <div className="stitch-metric-sub">SLA Uptime</div>
             </div>
           </div>
 
           {/* Automated Pipeline Engine Card */}
-          <div className="p-5 rounded-lg bg-slate-900/40 border border-slate-800 space-y-3.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[13px] font-semibold text-white flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="stitch-pipeline-card">
+            <div className="stitch-pipeline-header">
+              <span className="stitch-pipeline-title">
+                <span className="stitch-pulse-dot" />
                 Automated Pipeline Engine
               </span>
-              <span className="text-[11px] font-mono text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/60">
-                Read-only OIDC
-              </span>
+              <span className="stitch-pipeline-badge">Read-only OIDC</span>
             </div>
-            <div className="space-y-2.5 text-slate-300 text-[12px] leading-relaxed">
-              <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-[15px] text-blue-400">check_circle</span>
+            <div className="stitch-pipeline-list">
+              <div className="stitch-pipeline-item">
+                <span className="material-symbols-outlined text-blue-400" style={{ fontSize: '15px' }}>check_circle</span>
                 <span>Instant IdP connector configuration across Okta, Entra ID, &amp; Ping</span>
               </div>
-              <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-[15px] text-blue-400">check_circle</span>
+              <div className="stitch-pipeline-item">
+                <span className="material-symbols-outlined text-blue-400" style={{ fontSize: '15px' }}>check_circle</span>
                 <span>Continuous blast radius &amp; toxic triad triage engine</span>
               </div>
-              <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-[15px] text-blue-400">check_circle</span>
+              <div className="stitch-pipeline-item">
+                <span className="material-symbols-outlined text-blue-400" style={{ fontSize: '15px' }}>check_circle</span>
                 <span>Full audit trace &amp; compliance mappings mapped to CIS benchmarks</span>
               </div>
             </div>
@@ -139,11 +137,11 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
         {/* Bottom of Left Half */}
         <div className="stitch-right-bottom-footer">
           <span className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[14px]">lock</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>lock</span>
             Audited to SOC 2 Type II Standards • Enterprise Tier
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#34D399', marginRight: '6px' }} />
             End-to-End Encrypted
           </span>
         </div>
@@ -152,40 +150,32 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
       {/* RIGHT PANEL: 50% clean white enterprise form container */}
       <div className="stitch-auth-left-panel">
         {/* Top Header: Switch link */}
-        <div className="flex items-center justify-between pb-3">
-          <div className="flex items-center gap-2 lg:hidden">
-            <div className="w-7 h-7 rounded bg-slate-900 flex items-center justify-center text-white">
-              <span className="material-symbols-outlined text-[18px]">verified_user</span>
-            </div>
-            <span className="text-[17px] font-semibold text-slate-900 tracking-tight">IdentityLens</span>
-          </div>
-          <div className="ml-auto">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[13px] text-slate-600 hover:text-slate-900 transition-colors bg-transparent border-0 cursor-pointer"
-              onClick={onNavigateToLogin}
-            >
-              <span className="text-slate-500">Already have an account?</span>
-              <span className="font-semibold text-slate-900 hover:underline">Sign in →</span>
-            </button>
-          </div>
+        <div className="stitch-auth-top-bar" style={{ justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            className="stitch-switch-btn"
+            onClick={onNavigateToLogin}
+          >
+            <span style={{ color: '#64748B' }}>Already have an account?</span>
+            <span style={{ fontWeight: 600, color: '#0F172A', textDecoration: 'underline' }}>Sign in →</span>
+          </button>
         </div>
 
         {/* Center Box */}
-        <div className="stitch-auth-center-box py-4">
-          <div className="space-y-1.5 mb-6">
-            <h2 className="text-[26px] sm:text-[28px] font-bold text-slate-900 tracking-tight">
+        <div className="stitch-auth-center-box" style={{ maxWidth: '500px' }}>
+          <div className="stitch-auth-heading-group" style={{ marginBottom: '20px' }}>
+            <h2 className="stitch-auth-main-title">
               Create your organization workspace
             </h2>
-            <p className="text-[13.5px] text-slate-500 leading-relaxed">
+            <p className="stitch-auth-main-subtitle">
               Set up your continuous identity governance workspace in minutes.
             </p>
           </div>
 
           {/* Error Alert */}
           {displayError && (
-            <div className="stitch-auth-error-alert mb-4" role="alert">
-              <span className="material-symbols-outlined text-[18px]">error</span>
+            <div className="stitch-auth-error-alert" role="alert">
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>error</span>
               <span className="stitch-error-text">{displayError}</span>
               <button
                 type="button"
@@ -196,26 +186,24 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
                 }}
                 aria-label="Dismiss error"
               >
-                <span className="material-symbols-outlined text-[16px]">close</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
               </button>
             </div>
           )}
 
           {/* Form */}
-          <form className="space-y-4 pt-1" onSubmit={handleSubmit} noValidate>
+          <form className="stitch-reg-form" onSubmit={handleSubmit} noValidate>
             {/* Work Email / Username */}
             <div className="stitch-form-field">
-              <label className="block text-[12.5px] font-medium text-slate-800 mb-1.5" htmlFor="reg-email">
+              <label className="stitch-field-label" htmlFor="reg-email">
                 Work Email or Principal Username
               </label>
-              <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-[18px]">
-                  mail
-                </span>
+              <div className="stitch-input-icon-wrapper">
+                <span className="material-symbols-outlined stitch-leading-icon">mail</span>
                 <input
                   id="reg-email"
                   type="text"
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50/50 hover:bg-white text-slate-900 text-[13px] rounded-md border border-slate-200 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all"
+                  className="stitch-reg-input"
                   placeholder="shreyashgautam2007 or name@company.com"
                   value={email}
                   onChange={(e) => {
@@ -229,19 +217,17 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
             </div>
 
             {/* Full Name & Security Role */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-[12.5px] font-medium text-slate-800 mb-1.5" htmlFor="fullName">
+            <div className="stitch-grid-2col">
+              <div className="stitch-form-field">
+                <label className="stitch-field-label" htmlFor="fullName">
                   Full Name
                 </label>
-                <div className="relative">
-                  <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-[18px]">
-                    badge
-                  </span>
+                <div className="stitch-input-icon-wrapper">
+                  <span className="material-symbols-outlined stitch-leading-icon">badge</span>
                   <input
                     id="fullName"
                     type="text"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50/50 hover:bg-white text-slate-900 text-[13px] rounded-md border border-slate-200 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all"
+                    className="stitch-reg-input"
                     placeholder="Security Lead Name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -249,19 +235,17 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[12.5px] font-medium text-slate-800 mb-1.5" htmlFor="roleTitle">
+              <div className="stitch-form-field">
+                <label className="stitch-field-label" htmlFor="roleTitle">
                   Security Role
                 </label>
-                <div className="relative">
-                  <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-[18px]">
-                    manage_accounts
-                  </span>
+                <div className="stitch-input-icon-wrapper">
+                  <span className="material-symbols-outlined stitch-leading-icon">manage_accounts</span>
                   <select
                     id="roleTitle"
                     value={securityRole}
                     onChange={(e) => setSecurityRole(e.target.value)}
-                    className="w-full pl-9 pr-8 py-2 bg-slate-50/50 hover:bg-white text-slate-900 text-[13px] rounded-md border border-slate-200 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 appearance-none cursor-pointer transition-all"
+                    className="stitch-reg-select"
                   >
                     <option value="IAM Architect / Lead">IAM Architect / Lead</option>
                     <option value="Chief Information Security Officer (CISO)">Chief Information Security Officer (CISO)</option>
@@ -269,26 +253,22 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
                     <option value="DevSecOps / Cloud Architect">DevSecOps / Cloud Architect</option>
                     <option value="Compliance & GRC Director">Compliance &amp; GRC Director</option>
                   </select>
-                  <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-slate-400 pointer-events-none text-[18px]">
-                    expand_more
-                  </span>
+                  <span className="material-symbols-outlined stitch-trailing-icon">expand_more</span>
                 </div>
               </div>
             </div>
 
             {/* Organization Entity Name */}
-            <div>
-              <label className="block text-[12.5px] font-medium text-slate-800 mb-1.5" htmlFor="orgName">
+            <div className="stitch-form-field">
+              <label className="stitch-field-label" htmlFor="orgName">
                 Organization Entity Name
               </label>
-              <div className="relative mb-1.5">
-                <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-[18px]">
-                  corporate_fare
-                </span>
+              <div className="stitch-input-icon-wrapper" style={{ marginBottom: '6px' }}>
+                <span className="material-symbols-outlined stitch-leading-icon">corporate_fare</span>
                 <input
                   id="orgName"
                   type="text"
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50/50 hover:bg-white text-slate-900 text-[13px] rounded-md border border-slate-200 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all"
+                  className="stitch-reg-input"
                   placeholder="Acme Federal Infrastructure"
                   value={orgName}
                   onChange={(e) => {
@@ -300,88 +280,70 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
               </div>
 
               {/* Workspace URL Live Preview */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-md border border-slate-200 text-slate-500 font-mono text-[11.5px]">
-                <span className="material-symbols-outlined text-[15px] text-slate-600">link</span>
-                <span className="text-slate-500">Workspace URL:</span>
-                <span className="text-slate-900 font-semibold">
-                  identitylens.io/<span className="text-slate-900 underline">{slug}</span>
+              <div className="stitch-slug-box">
+                <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#475569' }}>link</span>
+                <span style={{ color: '#64748B' }}>Workspace URL:</span>
+                <span style={{ color: '#0F172A', fontWeight: 600 }}>
+                  identitylens.io/<span style={{ textDecoration: 'underline' }}>{slug}</span>
                 </span>
               </div>
             </div>
 
             {/* Primary Cloud Footprint Selector */}
-            <div>
-              <label className="block text-[12.5px] font-medium text-slate-800 mb-1.5">
+            <div className="stitch-form-field">
+              <label className="stitch-field-label">
                 Primary Cloud Footprint
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="stitch-cloud-grid">
                 <button
                   type="button"
-                  className={`px-3 py-2 text-center rounded-md text-[12px] font-medium transition-all shadow-sm flex items-center justify-center gap-1.5 border cursor-pointer ${
-                    cloudFootprint === 'AWS'
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
+                  className={`stitch-cloud-pill ${cloudFootprint === 'AWS' ? 'active' : ''}`}
                   onClick={() => setCloudFootprint('AWS')}
                 >
-                  <span className="material-symbols-outlined text-[16px]">cloud</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>cloud</span>
                   <span>AWS</span>
                 </button>
 
                 <button
                   type="button"
-                  className={`px-3 py-2 text-center rounded-md text-[12px] font-medium transition-all shadow-sm flex items-center justify-center gap-1.5 border cursor-pointer ${
-                    cloudFootprint === 'Azure'
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
+                  className={`stitch-cloud-pill ${cloudFootprint === 'Azure' ? 'active' : ''}`}
                   onClick={() => setCloudFootprint('Azure')}
                 >
-                  <span className="material-symbols-outlined text-[16px] text-slate-500">cloud_queue</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>cloud_queue</span>
                   <span>Azure</span>
                 </button>
 
                 <button
                   type="button"
-                  className={`px-3 py-2 text-center rounded-md text-[12px] font-medium transition-all shadow-sm flex items-center justify-center gap-1.5 border cursor-pointer ${
-                    cloudFootprint === 'GCP'
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
+                  className={`stitch-cloud-pill ${cloudFootprint === 'GCP' ? 'active' : ''}`}
                   onClick={() => setCloudFootprint('GCP')}
                 >
-                  <span className="material-symbols-outlined text-[16px] text-slate-500">filter_drama</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>filter_drama</span>
                   <span>Google Cloud</span>
                 </button>
 
                 <button
                   type="button"
-                  className={`px-3 py-2 text-center rounded-md text-[12px] font-medium transition-all shadow-sm flex items-center justify-center gap-1.5 border cursor-pointer ${
-                    cloudFootprint === 'Hybrid'
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
+                  className={`stitch-cloud-pill ${cloudFootprint === 'Hybrid' ? 'active' : ''}`}
                   onClick={() => setCloudFootprint('Hybrid')}
                 >
-                  <span className="material-symbols-outlined text-[16px] text-slate-500">hub</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>hub</span>
                   <span>Hybrid Multi</span>
                 </button>
               </div>
             </div>
 
             {/* Password */}
-            <div>
-              <label className="block text-[12.5px] font-medium text-slate-800 mb-1.5" htmlFor="password">
+            <div className="stitch-form-field">
+              <label className="stitch-field-label" htmlFor="password">
                 Enterprise Password / FIDO2 Passkey
               </label>
-              <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-[18px]">
-                  key
-                </span>
+              <div className="stitch-input-icon-wrapper">
+                <span className="material-symbols-outlined stitch-leading-icon">key</span>
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  className="w-full pl-9 pr-10 py-2 bg-slate-50/50 hover:bg-white text-slate-900 font-mono text-[12.5px] rounded-md border border-slate-200 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all"
+                  className="stitch-reg-input font-mono"
                   placeholder="Minimum 6 characters"
                   value={password}
                   onChange={(e) => {
@@ -393,10 +355,10 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700 bg-transparent border-0 cursor-pointer"
+                  className="stitch-trailing-btn"
                   onClick={() => setShowPassword((prev) => !prev)}
                 >
-                  <span className="material-symbols-outlined text-[18px]">
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                     {showPassword ? 'visibility_off' : 'visibility'}
                   </span>
                 </button>
@@ -404,21 +366,20 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
             </div>
 
             {/* Submit */}
-            <div className="pt-2">
+            <div style={{ paddingTop: '8px' }}>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-2.5 px-6 rounded-md bg-slate-900 hover:bg-slate-800 text-white font-medium text-[14px] tracking-tight shadow hover:shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
+                className="stitch-btn-submit"
               >
                 {isSubmitting ? (
                   <>
-                    <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
+                    <span className="material-symbols-outlined animate-spin" style={{ fontSize: '18px' }}>sync</span>
                     <span>Creating Organization Workspace...</span>
                   </>
                 ) : (
                   <>
-                    <span>Create Organization &amp; Continue</span>
-                    <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                    <span>Create Organization &amp; Continue →</span>
                   </>
                 )}
               </button>
@@ -427,7 +388,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin })
         </div>
 
         {/* Footer */}
-        <div className="stitch-auth-bottom-footer flex-col items-center gap-2 text-center">
+        <div className="stitch-auth-bottom-footer" style={{ flexDirection: 'column', gap: '6px' }}>
           <div>SOC 2 Type II • ISO 27001 • HIPAA Compliant</div>
           <div className="stitch-footer-links">
             <a href="#" onClick={(e) => e.preventDefault()}>Security Policy</a>

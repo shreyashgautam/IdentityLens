@@ -2385,8 +2385,8 @@ html, body {
   width: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #F8F9FA;
-  color: #0F172A;
+  background-color: #F8F9FA !important;
+  color: #0F172A !important;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -2402,9 +2402,41 @@ html, body {
   flex-direction: column;
   justify-content: space-between;
   padding: 24px 20px;
-  background-color: #FFFFFF;
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
   min-height: 100vh;
   overflow-y: auto;
+}
+
+.stitch-auth-left-panel .stitch-brand-title,
+.stitch-auth-left-panel .stitch-auth-main-title,
+.stitch-auth-left-panel .stitch-field-label,
+.stitch-auth-left-panel .stitch-mfa-title,
+.stitch-auth-left-panel .stitch-sso-btn-primary,
+.stitch-auth-left-panel .stitch-register-link-btn,
+.stitch-auth-left-panel h2 {
+  color: #0F172A !important;
+}
+
+.stitch-auth-left-panel .stitch-field-input {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: #CBD5E1 !important;
+}
+
+.stitch-auth-left-panel .stitch-field-input:focus {
+  border-color: #0F172A !important;
+  box-shadow: 0 0 0 1px #0F172A !important;
+}
+
+.stitch-auth-left-panel .stitch-btn-submit {
+  background-color: #0F172A !important;
+  color: #FFFFFF !important;
+  border: none !important;
+}
+
+.stitch-auth-left-panel .stitch-btn-submit:hover:not(:disabled) {
+  background-color: #1E293B !important;
 }
 
 @media (min-width: 640px) {
@@ -3029,5 +3061,267 @@ html, body {
   color: #64748B;
   font-family: 'JetBrains Mono', monospace;
 }
+
+/* ==========================================================================
+   Stitch Register Organization Workspace (Precision Styles)
+   ========================================================================== */
+
+.stitch-reg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stitch-input-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.stitch-leading-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 18px !important;
+  color: #94A3B8;
+  pointer-events: none;
+}
+
+.stitch-trailing-icon {
+  position: absolute;
+  right: 12px;
+  font-size: 18px !important;
+  color: #94A3B8;
+  pointer-events: none;
+}
+
+.stitch-trailing-btn {
+  position: absolute;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: #94A3B8;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stitch-trailing-btn:hover {
+  color: #334155;
+}
+
+.stitch-reg-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px 0 38px;
+  background-color: #FFFFFF !important;
+  border: 1px solid #CBD5E1 !important;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #0F172A !important;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.stitch-reg-input:focus {
+  border-color: #0F172A !important;
+  box-shadow: 0 0 0 1px #0F172A !important;
+}
+
+.stitch-reg-input::placeholder {
+  color: #94A3B8;
+}
+
+.stitch-reg-select {
+  width: 100%;
+  height: 40px;
+  padding: 0 36px 0 38px;
+  background-color: #FFFFFF !important;
+  border: 1px solid #CBD5E1 !important;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #0F172A !important;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stitch-reg-select:focus {
+  border-color: #0F172A !important;
+  box-shadow: 0 0 0 1px #0F172A !important;
+}
+
+.stitch-slug-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+}
+
+.stitch-cloud-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .stitch-cloud-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.stitch-cloud-pill {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid #E2E8F0;
+  background-color: #FFFFFF;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stitch-cloud-pill:hover:not(.active) {
+  background-color: #F8FAFC;
+  border-color: #CBD5E1;
+}
+
+.stitch-cloud-pill.active {
+  background-color: #0F172A !important;
+  color: #FFFFFF !important;
+  border-color: #0F172A !important;
+}
+
+.stitch-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .stitch-grid-2col {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.stitch-switch-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 0;
+}
+
+.stitch-pipeline-card {
+  padding: 18px;
+  border-radius: 8px;
+  background-color: rgba(15, 23, 42, 0.4);
+  border: 1px solid #1E293B;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stitch-pipeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stitch-pipeline-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stitch-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #34D399;
+  animation: pulse 1.5s infinite;
+}
+
+.stitch-pipeline-badge {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #94A3B8;
+  background-color: rgba(30, 41, 59, 0.8);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(51, 65, 85, 0.6);
+}
+
+.stitch-pipeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+  color: #CBD5E1;
+  line-height: 1.5;
+}
+
+.stitch-pipeline-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stitch-brand-cluster-dark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stitch-verified-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #60A5FA;
+}
+
+.stitch-brand-title-dark {
+  font-size: 18px;
+  font-weight: 600;
+  color: #FFFFFF;
+  letter-spacing: -0.02em;
+}
+
+.stitch-tag-badge {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94A3B8;
+  background-color: rgba(15, 23, 42, 0.8);
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid #1E293B;
+}
+
 
 

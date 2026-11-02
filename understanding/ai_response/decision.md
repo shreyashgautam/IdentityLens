@@ -476,4 +476,21 @@ This document logs all key architectural, technical, library, and design decisio
   - Gives users flexible credentials and a streamlined registration flow to create their organization tenant.
 - **Accepted Trade-Off**: Access token stored in `sessionStorage` is scoped to the active browser tab, providing persistence across reloads while still auto-clearing upon tab close.
 
+---
+
+### Decision 26: Split-Screen Authentication Architecture Matching Stitch Design & Image Reference
+
+- **Decision**:
+  1. **Strict Split-Screen Viewport**:
+     - Implement `LoginPage.tsx` and `RegisterPage.tsx` using a 50/50 split viewport layout (`.stitch-split-auth-container`).
+     - Left panel (white `#FFFFFF`, text `#0F172A`) houses the corporate IAM console with verified SCIM badging, SSO identity provider options, password visibility toggles, and FIDO2 policy selectors.
+     - Right panel (dark obsidian `#0B1120`, text `#94A3B8`) houses the continuous governance and pipeline engine showcase with metrics (`4,892` Identities, `186` Integrations, `99.98%` Uptime SLA in `#34D399`), live pulsing indicators, and security posture cards.
+  2. **Scoped Pure CSS Tokens with Dark-Theme Color Locks**:
+     - Avoid utility class bloat or unrendered Tailwind fragments by writing dedicated semantic CSS classes in `frontend/src/Dashboard.css`.
+     - Explicitly lock white-side background and typography colors using `!important` to prevent the application's global `[data-theme='dark']` custom properties from washing out form fields on the authentication screen.
+- **Why It Is Needed**:
+  - Matches the user's provided visual screenshot and the approved Google Stitch MCP design screen pixel-perfectly without styling breakage.
+- **Accepted Trade-Off**: Dedicated CSS classes in `Dashboard.css` increase stylesheet size by ~5KB gzipped, but ensure zero runtime layout shifts and strict theme isolation.
+
+
 
