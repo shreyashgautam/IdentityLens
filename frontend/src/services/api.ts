@@ -5,8 +5,20 @@ import type {
   RelationshipHealthGauge,
   RiskFinding
 } from '../types/dashboard';
+import type { AuthUser } from '../types/auth';
 
-const API_BASE = 'http://localhost:5001';
+export const API_BASE = 'http://localhost:5001';
+
+// In-memory access token storage (avoids local storage XSS vulnerabilities)
+let currentAccessToken: string | null = null;
+
+export const setAccessToken = (token: string | null): void => {
+  currentAccessToken = token;
+};
+
+export const getAccessToken = (): string | null => {
+  return currentAccessToken;
+};
 
 export interface DashboardApiResponse {
   isLiveBackend: boolean;
@@ -18,7 +30,111 @@ export interface DashboardApiResponse {
   totalFindings: number;
 }
 
-// Baseline Stitch design demonstration data (explicitly labeled synthetic)
+/**
+ * Centralized Authenticated API Request Wrapper
+ * Automatically attaches Bearer tokens, includes cookies for session refresh,
+ * and intercepts 401 errors for silent token recovery.
+ */
+export async function apiFetch(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+  const headers = new Headers(options.headers || {});
+
+  if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  if (currentAccessToken && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${currentAccessToken}`);
+  }
+
+  const fetchOptions: RequestInit = {
+    ...options,
+    headers,
+    credentials: 'include' // Sends & receives HttpOnly refresh cookies
+  };
+
+  let response = await fetch(url, fetchOptions);
+
+  // If unauthorized due to expired token and not already attempting refresh/auth endpoints
+  if (response.status === 401 && !endpoint.includes('/auth/')) {
+    try {
+      const refreshed = await refreshApi();
+      if (refreshed?.accessToken) {
+        setAccessToken(refreshed.accessToken);
+        headers.set('Authorization', `Bearer ${refreshed.accessToken}`);
+        response = await fetch(url, { ...fetchOptions, headers });
+      }
+    } catch {
+      // Refresh failed; propagate original 401
+    }
+  }
+
+  return response;
+}
+
+/**
+ * Auth API Endpoints
+ */
+export async function loginApi(
+  email: string,
+  password: string
+): Promise<{ accessToken: string; user: AuthUser }> {
+  const res = await apiFetch('/api/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json.error?.message || 'Login failed. Please check your credentials.');
+  }
+
+  return json.data;
+}
+
+export async function refreshApi(): Promise<{ accessToken: string } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include'
+    });
+
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data;
+  } catch {
+    return null;
+  }
+}
+
+export async function meApi(): Promise<{ user: AuthUser; sessionId: string }> {
+  const res = await apiFetch('/api/v1/auth/me', {
+    method: 'GET'
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json.error?.message || 'Failed to retrieve current user session.');
+  }
+
+  return json.data;
+}
+
+export async function logoutApi(): Promise<void> {
+  try {
+    await apiFetch('/api/v1/auth/logout', {
+      method: 'POST'
+    });
+  } finally {
+    setAccessToken(null);
+  }
+}
+
+// Baseline Stitch design demonstration data
 const BASELINE_METRICS: InventoryMetric[] = [
   {
     title: 'Total Identities',
@@ -300,14 +416,14 @@ export async function fetchDashboardData(): Promise<DashboardApiResponse> {
     isLive = false;
   }
 
-  // Attempt to check if live inventory counts are accessible
+  // Fetch real inventory counts from PostgreSQL via authenticated apiFetch
   if (isLive) {
     try {
       const [identitiesRes, appsRes, accountsRes, entitlementsRes] = await Promise.allSettled([
-        fetch(`${API_BASE}/api/v1/identities?limit=1`),
-        fetch(`${API_BASE}/api/v1/applications?limit=1`),
-        fetch(`${API_BASE}/api/v1/accounts?limit=1`),
-        fetch(`${API_BASE}/api/v1/entitlements?limit=1`)
+        apiFetch('/api/v1/identities?limit=1'),
+        apiFetch('/api/v1/applications?limit=1'),
+        apiFetch('/api/v1/accounts?limit=1'),
+        apiFetch('/api/v1/entitlements?limit=1')
       ]);
 
       if (identitiesRes.status === 'fulfilled' && identitiesRes.value.ok) {
@@ -358,7 +474,7 @@ export async function fetchDashboardData(): Promise<DashboardApiResponse> {
         }
       }
     } catch {
-      // Keep baseline metrics if inventory endpoint requires auth session
+      // Retain baseline metrics if session is invalid or pending
     }
   }
 

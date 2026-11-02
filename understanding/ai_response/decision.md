@@ -281,6 +281,36 @@ This document logs all key architectural, technical, library, and design decisio
 
 ---
 
+### Decision 24: Enterprise Login Flow, In-Memory JWT Storage, and Silent Session Restoration Foundation
+
+- **Decision**:
+  1. **Backend Credential Login (`POST /api/v1/auth/login`)**:
+     - Strict Zod validation on `{ email, password }` with trimmed lowercased emails and required credentials.
+     - Auto-provisions the development administrator (`admin@identitylens.io` / `Northstar Labs`) on-demand in development mode if not already created, guaranteeing instant developer on-ramp without manual DB seeding.
+     - Creates an authentic PostgreSQL `user_sessions` record with cryptographically secure single-use refresh token hash (SHA-256).
+     - Issues a signed access JWT (`HS256`, 15-minute expiry) with identity claims `sub`, `sid`, `email`, `role`, and `utv`.
+     - Sets the single-use refresh token in an `HttpOnly; SameSite=Lax; Path=/api/v1/auth` cookie and returns `{ accessToken, tokenType: 'Bearer', expiresIn: 900, user }`.
+  2. **CurrentUser Identity Probe (`GET /api/v1/auth/me`)**:
+     - Protected by `authenticate` middleware, returns verified profile context `{ user: { id, email, display_name, role, ... }, sessionId }`.
+  3. **Zero Plaintext LocalStorage Token Storage**:
+     - Access JWT is held **strictly in-memory** inside the client JS runtime (`frontend/src/services/api.ts`), never persisted to `localStorage` or `sessionStorage` (preventing XSS exfiltration).
+     - Refresh tokens remain in `HttpOnly` cookies, unreachable by arbitrary JavaScript.
+  4. **Silent Refresh Recovery & Automatic Token Injection**:
+     - Centralized `apiFetch` transparently attaches `Authorization: Bearer <inMemoryToken>` to all API requests and sends `credentials: 'include'`.
+     - Upon encountering a `401 MISSING_TOKEN` or `TOKEN_EXPIRED`, `apiFetch` initiates a silent single-flight `POST /api/v1/auth/refresh` recovery, acquires a fresh JWT, updates the in-memory token, and replays the original request without user interruption.
+  5. **Flicker-Free Startup Session Restoration (`AuthContext`)**:
+     - On page load / refresh, `AuthProvider` immediately checks `GET /api/v1/auth/me`. If active or recoverable via refresh cookie, the user is seamlessly logged in.
+     - Displays a branded, accessible loading indicator during initialization, preventing flashes of the login screen for authenticated users.
+- **Why It Is Needed**:
+  - Resolves the root cause of `{"error":{"code":"MISSING_TOKEN"}}` by establishing a secure, standard-compliant Bearer token lifecycle.
+  - Adheres strictly to Zero Trust architecture and OWASP Session Management standards.
+- **Alternatives Considered**:
+  - *Storing JWT in `localStorage`*: Highly vulnerable to XSS credential harvesting. Rejected.
+  - *Hardcoding fake frontend auth state*: Bypasses real security boundaries and fails on real backend queries. Rejected.
+- **Accepted Trade-Off**: Hard page reloads trigger one background refresh/me network call to re-establish in-memory token state from the HttpOnly session cookie.
+
+---
+
 ### Decision 18: Deterministic Development Seed Engine (Northstar Labs) and Idempotent Upsert Strategy
 
 - **Decision**:

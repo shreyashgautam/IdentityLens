@@ -1121,7 +1121,59 @@ describe('Milestone 6 — Phase 1 Stage B: Firebase Authentication & Token Excha
     assert.equal(body.error.code, 'USER_INACTIVE');
   });
 
-  // 19. Exact-ID test cleanup and preservation of all seed records
+  // 19. POST /api/v1/auth/login succeeds and returns access JWT and sets refresh cookie
+  test('POST /api/v1/auth/login authenticates corporate email and establishes session', async () => {
+    const testEmail = `operator-${crypto.randomBytes(4).toString('hex')}@identitylens.io`;
+
+    const res = await fetch(`${baseUrl}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': env.CORS_ORIGIN
+      },
+      body: JSON.stringify({
+        email: testEmail,
+        password: 'Password123!'
+      })
+    });
+
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.data.user.email, testEmail);
+    assert.ok(body.data.accessToken);
+    assert.equal(body.data.tokenType, 'Bearer');
+
+    registerCreatedUser(body.data.user.id);
+
+    // Verify Set-Cookie header contains HttpOnly refresh token
+    const cookieHeader = res.headers.get('set-cookie');
+    assert.ok(cookieHeader);
+    assert.ok(cookieHeader.includes('refresh_token='));
+    assert.ok(cookieHeader.toLowerCase().includes('httponly'));
+
+    // Verify GET /api/v1/auth/me returns the user context with the issued token
+    const meRes = await fetch(`${baseUrl}/api/v1/auth/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${body.data.accessToken}`
+      }
+    });
+    assert.equal(meRes.status, 200);
+    const meBody = await meRes.json();
+    assert.equal(meBody.data.user.email, testEmail);
+  });
+
+  // 20. GET /api/v1/auth/me rejects request without token
+  test('GET /api/v1/auth/me rejects request missing token with 401 MISSING_TOKEN', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/auth/me`, {
+      method: 'GET'
+    });
+    assert.equal(res.status, 401);
+    const body = await res.json();
+    assert.equal(body.error.code, 'MISSING_TOKEN');
+  });
+
+  // 21. Exact-ID test cleanup and preservation of all seed records
   test('Stage C: Verifies all original seed data counts remain completely untouched', async () => {
     const identities = await query('SELECT COUNT(*)::int AS count FROM identities');
     const applications = await query('SELECT COUNT(*)::int AS count FROM applications');

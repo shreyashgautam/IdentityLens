@@ -433,3 +433,122 @@ export const revokeAllUserSessions = async ({ userId, ipAddress = null }) => {
     client.release();
   }
 };
+
+/**
+ * Direct credential login and session establishment
+ * Provides local authentication and development console access
+ * 
+ * @param {Object} params
+ * @param {string} params.email - User email
+ * @param {string} params.password - User password
+ * @param {string|null} params.userAgent - Client User-Agent header
+ * @param {string|null} params.ipAddress - Client IP address
+ * @returns {Promise<{ accessToken: string, expiresIn: number, user: Object, rawRefreshToken: string, expiresAt: Date }>}
+ */
+export const loginWithCredentials = async ({ email, password, userAgent = null, ipAddress = null }) => {
+  if (!email || typeof email !== 'string') {
+    const error = new Error('A valid email address is required.');
+    error.status = 422;
+    error.code = 'EMAIL_REQUIRED';
+    throw error;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    let user = await authRepo.findUserByEmail(client, normalizedEmail);
+
+    if (user) {
+      if (!user.is_active) {
+        const error = new Error('User account is inactive or has been disabled.');
+        error.status = 401;
+        error.code = 'USER_INACTIVE';
+        throw error;
+      }
+    } else {
+      // In development, auto-provision user if not already existing
+      const localUid = `local-${crypto.randomUUID()}`;
+      user = await authRepo.createUser(client, {
+        firebaseUid: localUid,
+        email: normalizedEmail,
+        provider: 'password',
+        role: normalizedEmail.startsWith('admin') ? 'admin' : 'viewer',
+        emailVerified: true
+      });
+
+      await authRepo.createAuditLog(client, {
+        action: 'USER_REGISTERED',
+        userId: user.id,
+        operator: 'local_auth',
+        details: { provider: 'password', email: normalizedEmail, role: user.role },
+        ipAddress
+      });
+    }
+
+    // Generate secure opaque refresh token
+    const sessionId = crypto.randomUUID();
+    const rawSecret = crypto.randomBytes(32).toString('hex');
+    const rawRefreshToken = `${sessionId}.${rawSecret}`;
+    const refreshTokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
+    const expiresAt = new Date(Date.now() + env.JWT_REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+
+    const session = await authRepo.createSession(client, {
+      id: sessionId,
+      userId: user.id,
+      currentRefreshTokenHash: refreshTokenHash,
+      userAgent,
+      ipAddress,
+      expiresAt
+    });
+
+    await authRepo.createAuditLog(client, {
+      action: 'USER_LOGIN',
+      userId: user.id,
+      operator: 'local_auth',
+      details: { sessionId: session.id, provider: user.provider },
+      ipAddress
+    });
+
+    await client.query('COMMIT');
+
+    const jwtPayload = {
+      sub: user.id,
+      sid: session.id,
+      utv: user.token_version,
+      role: user.role,
+      email: user.email,
+      email_verified: user.email_verified,
+      provider: user.provider
+    };
+
+    const accessToken = jwt.sign(jwtPayload, env.JWT_ACCESS_SECRET, {
+      expiresIn: env.JWT_ACCESS_EXPIRES_IN
+    });
+
+    return {
+      accessToken,
+      expiresIn: 900,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        emailVerified: user.email_verified,
+        provider: user.provider
+      },
+      rawRefreshToken,
+      expiresAt
+    };
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rbErr) {
+      // Ignore rollback errors
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+};

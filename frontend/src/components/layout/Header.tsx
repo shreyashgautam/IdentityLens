@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import type { AuthUser } from '../../types/auth';
 
 interface HeaderProps {
   onOpenMobileSidebar: () => void;
@@ -8,6 +9,8 @@ interface HeaderProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   collapsed: boolean;
+  user?: AuthUser | null;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,8 +20,34 @@ export const Header: React.FC<HeaderProps> = ({
   onNotificationClick,
   theme,
   onToggleTheme,
-  collapsed
+  collapsed,
+  user,
+  onLogout
 }) => {
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const initials = user?.email
+    ? user.email.slice(0, 2).toUpperCase()
+    : 'EV';
+
+  const displayName = user?.email
+    ? user.email.split('@')[0]
+    : 'Elena Vance';
+
+  const roleLabel = user?.role === 'admin' ? 'Security Admin' : 'Security Analyst';
+
   return (
     <header className={`app-header ${collapsed ? 'collapsed' : ''}`}>
       <div className="header-left">
@@ -99,21 +128,59 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="header-divider" />
 
-        {/* User Profile */}
-        <div className="user-profile-widget" tabIndex={0} role="button" aria-label="User Profile Menu">
-          <div className="user-avatar">
-            <span>EV</span>
+        {/* User Profile Widget */}
+        <div className="relative" ref={profileRef}>
+          <div
+            className="user-profile-widget"
+            tabIndex={0}
+            role="button"
+            aria-label="User Profile Menu"
+            aria-expanded={profileOpen}
+            onClick={() => setProfileOpen((prev) => !prev)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                setProfileOpen((prev) => !prev);
+              }
+            }}
+          >
+            <div className="user-avatar">
+              <span>{initials}</span>
+            </div>
+            <div className="user-meta hidden xl:flex">
+              <span className="user-name">{displayName}</span>
+              <span className="user-role">{roleLabel}</span>
+            </div>
+            <span className="material-symbols-outlined text-[18px] text-[#94A3B8]">
+              {profileOpen ? 'expand_less' : 'expand_more'}
+            </span>
           </div>
-          <div className="user-meta hidden xl:flex">
-            <span className="user-name">Elena Vance</span>
-            <span className="user-role">Security Lead</span>
-          </div>
-          <span className="material-symbols-outlined text-[18px] text-[#94A3B8]">
-            expand_more
-          </span>
+
+          {/* User Dropdown Menu */}
+          {profileOpen && (
+            <div className="user-profile-dropdown" role="menu">
+              <div className="dropdown-user-info">
+                <span className="dropdown-email">{user?.email || 'operator@identitylens.io'}</span>
+                <span className="dropdown-role">{user?.role?.toUpperCase() || 'VIEWER'}</span>
+              </div>
+              <div className="dropdown-divider" />
+              {onLogout && (
+                <button
+                  type="button"
+                  className="dropdown-item dropdown-logout-btn"
+                  role="menuitem"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    onLogout();
+                  }}
+                >
+                  <span className="material-symbols-outlined text-[18px]">logout</span>
+                  <span>Sign Out</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </header>
   );
 };
-

@@ -168,3 +168,57 @@ export const revokeAll = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * POST /api/v1/auth/login
+ * Authenticates user with corporate email and password, issuing access JWT and HttpOnly refresh cookie.
+ */
+export const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.validatedBody || req.body;
+    const userAgent = req.headers['user-agent'] || null;
+    const ipAddress = req.ip || req.socket?.remoteAddress || null;
+
+    const {
+      accessToken,
+      expiresIn,
+      user,
+      rawRefreshToken,
+      expiresAt
+    } = await authService.loginWithCredentials({
+      email,
+      password,
+      userAgent,
+      ipAddress
+    });
+
+    // Set refresh token strictly as an HttpOnly; Secure (in prod); SameSite=Lax cookie
+    res.cookie('refresh_token', rawRefreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/api/v1/auth',
+      expires: expiresAt
+    });
+
+    return successResponse(res, {
+      accessToken,
+      tokenType: 'Bearer',
+      expiresIn,
+      user
+    }, { status: 200 });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/v1/auth/me
+ * Retrieves current authenticated user context and active session identifier.
+ */
+export const me = async (req, res) => {
+  return successResponse(res, {
+    user: req.user,
+    sessionId: req.sessionId
+  }, { status: 200 });
+};

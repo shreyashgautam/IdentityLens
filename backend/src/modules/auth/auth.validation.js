@@ -17,3 +17,19 @@ export const exchangeBodySchema = z
       .min(1, { message: 'Firebase ID token cannot be empty' })
   })
   .strict({ message: 'Unknown fields are not permitted in request body' });
+
+/**
+ * Body validation schema for POST /api/v1/auth/login
+ * Validates corporate email and password
+ */
+export const loginBodySchema = z
+  .object({
+    email: z
+      .string({ required_error: 'Email is required' })
+      .trim()
+      .email({ message: 'Must be a valid email address' }),
+    password: z
+      .string({ required_error: 'Password is required' })
+      .min(6, { message: 'Password must be at least 6 characters' })
+  })
+  .strict({ message: 'Unknown fields are not permitted in request body' });

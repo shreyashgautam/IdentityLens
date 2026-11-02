@@ -795,4 +795,81 @@ User-Wide Revocation (POST /api/v1/auth/revoke-all):
   └─ Return 200 { success: true }. (All prior access JWTs fail with 401 TOKEN_REVOKED / SESSION_REVOKED).
 ```
 
+---
+
+## 10. Milestone 6 Stage D: Frontend Authentication Lifecycle, In-Memory Bearer Injection, and Session Restoration Flow
+
+```
+=========================================================================================
+                         BROWSER STARTUP & SESSION RESTORATION
+=========================================================================================
+User loads / refreshes page (App.tsx)
+  │
+  ▼
+1. AuthProvider mounts (frontend/src/context/AuthContext.tsx):
+   ├─ State initialized: isLoading = true, user = null, isAuthenticated = false.
+   ├─ Renders: <div className="auth-loading-screen"> (IdentityLens brand mark + spinner).
+   ├─ Dispatches background check: meApi() (GET /api/v1/auth/me) with credentials: 'include'.
+   │
+   ├─ Path A (Active Session Exists):
+   │    ├─ If in-memory token is absent, meApi 401 triggers apiFetch silent refresh.
+   │    ├─ POST /api/v1/auth/refresh sends HttpOnly refresh_token cookie.
+   │    ├─ Backend rotates token, sets new cookie, returns 200 { accessToken, user }.
+   │    ├─ apiFetch stores accessToken in memory (`inMemoryAccessToken = token`).
+   │    ├─ meApi returns 200 { user, sessionId }.
+   │    └─ AuthContext sets: user = res.user, isAuthenticated = true, isLoading = false.
+   │    └─ App renders AppShell: <Sidebar />, <Header />, <DashboardPage />.
+   │
+   └─ Path B (Unauthenticated / Session Expired):
+        ├─ meApi / refresh returns 401 / 403 / network error.
+        ├─ AuthContext sets: user = null, isAuthenticated = false, isLoading = false.
+        └─ App renders: <LoginPage />.
+
+=========================================================================================
+                            LOGIN EXECUTION FLOW
+=========================================================================================
+User fills { email, password } on LoginPage -> Clicks "Sign in to Platform"
+  │
+  ▼
+1. LoginPage.tsx:
+   ├─ Client validation: checks email and password are provided.
+   ├─ Dispatches: login(email, password) from useAuth().
+   │
+2. AuthContext.tsx -> api.ts:loginApi(email, password):
+   ├─ POST /api/v1/auth/login { email, password } (credentials: 'include').
+   ├─ Backend validates credentials, creates session in PostgreSQL `user_sessions`.
+   ├─ Sets HttpOnly SameSite=Lax cookie: refresh_token=<sessionId>.<secret>.
+   ├─ Responds: 200 { accessToken, tokenType: 'Bearer', expiresIn: 900, user }.
+   ├─ In-memory access token stored in api.ts runtime memory.
+   ├─ AuthContext sets user and isAuthenticated = true.
+   └─ UI instantly transitions to authenticated Dashboard.
+
+=========================================================================================
+                     CENTRALIZED API CLIENT & AUTO-RECOVERY
+=========================================================================================
+Dashboard fetches live inventory (e.g. fetchDashboardData() -> apiFetch('/identities')):
+  │
+  ▼
+1. apiFetch(endpoint, options):
+   ├─ Checks in-memory access token.
+   ├─ Injects header: `Authorization: Bearer <inMemoryAccessToken>`.
+   ├─ Injects option: `credentials: 'include'`.
+   ├─ Performs network fetch.
+   │
+   ├─ Path 1 (200 OK):
+   │    └─ JSON parsed and returned to caller. Live DB counts render directly.
+   │
+   └─ Path 2 (401 MISSING_TOKEN / TOKEN_EXPIRED):
+        ├─ Transparently calls refreshApi() (POST /api/v1/auth/refresh).
+        ├─ On successful token refresh:
+        │    ├─ Stores new access token in memory.
+        │    ├─ Clones original request with new `Authorization: Bearer <newToken>`.
+        │    └─ Retries original fetch and returns result to caller without throwing.
+        └─ On failed refresh (invalid session / replay revoked):
+             ├─ Clears in-memory token.
+             ├─ Dispatches 'auth:unauthorized' event.
+             └─ AuthContext resets to unauthenticated state, navigating user to LoginPage.
+```
+
+
 
