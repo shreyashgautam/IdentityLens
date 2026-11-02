@@ -1,9 +1,22 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { AuthState } from '../types/auth';
-import { loginApi, registerApi, logoutApi, refreshApi, meApi, setAccessToken, getAccessToken } from '../services/api';
+import type { AuthState, AuthUser } from '../types/auth';
+import {
+  loginApi,
+  verifyOtpApi,
+  resendOtpApi,
+  registerApi,
+  logoutApi,
+  refreshApi,
+  meApi,
+  setAccessToken,
+  getAccessToken,
+  type LoginResult
+} from '../services/api';
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  verifyOtp: (mfaToken: string, otp: string) => Promise<{ accessToken: string; user: AuthUser }>;
+  resendOtp: (mfaToken: string) => Promise<{ mfaToken: string; expiresIn: number; message: string }>;
   register: (organization: string, email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -85,13 +98,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
       const data = await loginApi(email, password);
-      setAccessToken(data.accessToken);
-      setState({
-        user: data.user,
-        isAuthenticated: true,
-        isLoading: false,
-        error: null
-      });
+      if (data.mfaRequired) {
+        setState((prev) => ({ ...prev, isLoading: false, error: null }));
+        return data;
+      }
+      if (data.accessToken && data.user) {
+        setAccessToken(data.accessToken);
+        setState({
+          user: data.user,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null
+        });
+      }
+      return data;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Invalid credentials. Please try again.';
       setAccessToken(null);
@@ -101,6 +121,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading: false,
         error: message
       });
+      throw err;
+    }
+  }, []);
+
+  const verifyOtp = useCallback(async (mfaToken: string, otp: string) => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const data = await verifyOtpApi(mfaToken, otp);
+      setAccessToken(data.accessToken);
+      setState({
+        user: data.user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null
+      });
+      return data;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Invalid verification code. Please check and try again.';
+      setState((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: message
+      }));
+      throw err;
+    }
+  }, []);
+
+  const resendOtp = useCallback(async (mfaToken: string) => {
+    try {
+      return await resendOtpApi(mfaToken);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to resend code.';
+      setState((prev) => ({ ...prev, error: message }));
       throw err;
     }
   }, []);
@@ -152,6 +205,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         ...state,
         login,
+        verifyOtp,
+        resendOtp,
         register,
         logout,
         clearError

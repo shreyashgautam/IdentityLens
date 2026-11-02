@@ -40,6 +40,23 @@ export const findUserByFirebaseUidForUpdate = async (client, firebaseUid) => {
 };
 
 /**
+ * Find user by primary UUID
+ */
+export const findUserById = async (clientOrPool, id) => {
+  const q = clientOrPool.query ? clientOrPool.query.bind(clientOrPool) : defaultQuery;
+  const sql = `
+    SELECT id, firebase_uid, email, provider, role, email_verified, is_active,
+           token_version, tokens_valid_after, firebase_tokens_valid_after,
+           created_at, updated_at
+    FROM users
+    WHERE id = $1
+    LIMIT 1;
+  `;
+  const { rows } = await q(sql, [id]);
+  return rows[0] || null;
+};
+
+/**
  * Find user by normalized email address
  */
 export const findUserByEmail = async (clientOrPool, email) => {
@@ -370,5 +387,71 @@ export const createAuditLog = async (clientOrPool, {
   ];
   const { rows } = await q(sql, params);
   return rows[0];
+};
+
+/**
+ * Create an OTP verification record for 2FA
+ */
+export const createOtpVerification = async (client, {
+  userId,
+  email,
+  otpHash,
+  mfaToken,
+  expiresAt
+}) => {
+  const sql = `
+    INSERT INTO otp_verifications (
+      user_id,
+      email,
+      otp_hash,
+      mfa_token,
+      expires_at
+    ) VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, user_id, email, mfa_token, expires_at, created_at;
+  `;
+  const { rows } = await client.query(sql, [userId, email, otpHash, mfaToken, expiresAt]);
+  return rows[0];
+};
+
+/**
+ * Find active OTP record by MFA token
+ */
+export const findOtpByMfaToken = async (client, mfaToken) => {
+  const sql = `
+    SELECT id, user_id, email, otp_hash, mfa_token, expires_at, consumed_at, attempts, created_at
+    FROM otp_verifications
+    WHERE mfa_token = $1
+    LIMIT 1;
+  `;
+  const { rows } = await client.query(sql, [mfaToken]);
+  return rows[0] || null;
+};
+
+/**
+ * Mark OTP as consumed upon successful verification
+ */
+export const consumeOtp = async (client, id) => {
+  const sql = `
+    UPDATE otp_verifications
+    SET consumed_at = NOW()
+    WHERE id = $1
+    RETURNING id, consumed_at;
+  `;
+  const { rows } = await client.query(sql, [id]);
+  return rows[0] || null;
+};
+
+/**
+ * Increment failed attempt count for an OTP
+ */
+export const incrementOtpAttempts = async (client, id) => {
+  const sql = `
+    UPDATE otp_verifications
+    SET attempts = attempts + 1
+    WHERE id = $1
+    RETURNING id, attempts;
+  `;
+  const { rows } = await client.query(sql, [id]);
+  return rows[0] || null;
 };
 

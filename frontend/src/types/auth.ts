@@ -15,3 +15,12 @@ export interface AuthState {
   error: string | null;
 }
 
+export interface MfaChallenge {
+  mfaRequired: boolean;
+  mfaToken: string;
+  email: string;
+  maskedEmail: string;
+  expiresIn: number;
+}
+
+

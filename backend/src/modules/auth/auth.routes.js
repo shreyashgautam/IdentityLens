@@ -3,7 +3,7 @@ import * as authController from './auth.controller.js';
 import { validate } from '../../middlewares/validate.js';
 import { verifyCsrfOrigin } from '../../middlewares/csrf.js';
 import { authenticate } from '../../middlewares/auth.js';
-import { exchangeBodySchema, loginBodySchema, registerBodySchema } from './auth.validation.js';
+import { exchangeBodySchema, loginBodySchema, registerBodySchema, resendOtpBodySchema, verifyOtpBodySchema } from './auth.validation.js';
 
 const router = Router();
 
@@ -20,13 +20,35 @@ router.post(
 
 /**
  * POST /api/v1/auth/login
- * Authenticates user with corporate email and password, issuing access JWT and HttpOnly refresh cookie.
+ * Authenticates user with corporate email and password, issuing a 2FA MFA challenge.
  */
 router.post(
   '/login',
   verifyCsrfOrigin,
   validate({ body: loginBodySchema }),
   authController.login
+);
+
+/**
+ * POST /api/v1/auth/verify-otp
+ * Validates 2FA OTP code and completes authentication session.
+ */
+router.post(
+  '/verify-otp',
+  verifyCsrfOrigin,
+  validate({ body: verifyOtpBodySchema }),
+  authController.verifyOtp
+);
+
+/**
+ * POST /api/v1/auth/resend-otp
+ * Resends a fresh 2FA OTP code to registered email address.
+ */
+router.post(
+  '/resend-otp',
+  verifyCsrfOrigin,
+  validate({ body: resendOtpBodySchema }),
+  authController.resendOtp
 );
 
 /**

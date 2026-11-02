@@ -171,11 +171,34 @@ export const revokeAll = async (req, res, next) => {
 
 /**
  * POST /api/v1/auth/login
- * Authenticates user with corporate email and password, issuing access JWT and HttpOnly refresh cookie.
+ * Initiates credential authentication, challenges user with 2FA email OTP.
  */
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.validatedBody || req.body;
+    const userAgent = req.headers['user-agent'] || null;
+    const ipAddress = req.ip || req.socket?.remoteAddress || null;
+
+    const result = await authService.loginWithCredentials({
+      email,
+      password,
+      userAgent,
+      ipAddress
+    });
+
+    return successResponse(res, result, { status: 200 });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/v1/auth/verify-otp
+ * Verifies 2FA OTP code and completes session establishment.
+ */
+export const verifyOtp = async (req, res, next) => {
+  try {
+    const { mfaToken, otp } = req.validatedBody || req.body;
     const userAgent = req.headers['user-agent'] || null;
     const ipAddress = req.ip || req.socket?.remoteAddress || null;
 
@@ -185,9 +208,9 @@ export const login = async (req, res, next) => {
       user,
       rawRefreshToken,
       expiresAt
-    } = await authService.loginWithCredentials({
-      email,
-      password,
+    } = await authService.verifyOtpAndEstablishSession({
+      mfaToken,
+      otp,
       userAgent,
       ipAddress
     });
@@ -207,6 +230,26 @@ export const login = async (req, res, next) => {
       expiresIn,
       user
     }, { status: 200 });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/v1/auth/resend-otp
+ * Dispatches a new 2FA OTP code to the registered email address.
+ */
+export const resendOtp = async (req, res, next) => {
+  try {
+    const { mfaToken } = req.validatedBody || req.body;
+    const ipAddress = req.ip || req.socket?.remoteAddress || null;
+
+    const result = await authService.resendOtp({
+      mfaToken,
+      ipAddress
+    });
+
+    return successResponse(res, result, { status: 200 });
   } catch (error) {
     next(error);
   }

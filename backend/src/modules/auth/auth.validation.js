@@ -28,10 +28,47 @@ export const loginBodySchema = z
       .string({ required_error: 'Email or username is required' })
       .trim()
       .min(3, { message: 'Email or username must be at least 3 characters' })
-      .transform((val) => (val.includes('@') ? val.toLowerCase() : `${val.toLowerCase()}@identitylens.io`)),
+      .transform((val) => {
+        const lower = val.toLowerCase();
+        if (lower === 'shreyashgautam2007') {
+          return 'shreyashgautam2007@gmail.com';
+        }
+        if (lower === 'elena.vance') {
+          return 'elena.vance@enterprise-sec.io';
+        }
+        return lower.includes('@') ? lower : `${lower}@identitylens.io`;
+      }),
     password: z
       .string({ required_error: 'Password is required' })
       .min(6, { message: 'Password must be at least 6 characters' })
+  })
+  .strict({ message: 'Unknown fields are not permitted in request body' });
+
+/**
+ * Body validation schema for POST /api/v1/auth/verify-otp
+ */
+export const verifyOtpBodySchema = z
+  .object({
+    mfaToken: z
+      .string({ required_error: 'MFA token is required' })
+      .trim()
+      .min(10, { message: 'Invalid MFA token' }),
+    otp: z
+      .string({ required_error: 'OTP code is required' })
+      .trim()
+      .regex(/^\d{6}$/, { message: 'OTP must be exactly 6 digits' })
+  })
+  .strict({ message: 'Unknown fields are not permitted in request body' });
+
+/**
+ * Body validation schema for POST /api/v1/auth/resend-otp
+ */
+export const resendOtpBodySchema = z
+  .object({
+    mfaToken: z
+      .string({ required_error: 'MFA token is required' })
+      .trim()
+      .min(10, { message: 'Invalid MFA token' })
   })
   .strict({ message: 'Unknown fields are not permitted in request body' });
 

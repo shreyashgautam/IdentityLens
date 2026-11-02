@@ -93,10 +93,20 @@ export async function apiFetch(
 /**
  * Auth API Endpoints
  */
+export interface LoginResult {
+  mfaRequired?: boolean;
+  mfaToken?: string;
+  email?: string;
+  maskedEmail?: string;
+  expiresIn?: number;
+  accessToken?: string;
+  user?: AuthUser;
+}
+
 export async function loginApi(
   email: string,
   password: string
-): Promise<{ accessToken: string; user: AuthUser }> {
+): Promise<LoginResult> {
   const res = await apiFetch('/api/v1/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password })
@@ -105,6 +115,43 @@ export async function loginApi(
   const json = await res.json();
   if (!res.ok) {
     throw new Error(json.error?.message || 'Login failed. Please check your credentials.');
+  }
+
+  return json.data;
+}
+
+export async function verifyOtpApi(
+  mfaToken: string,
+  otp: string
+): Promise<{ accessToken: string; user: AuthUser }> {
+  const res = await apiFetch('/api/v1/auth/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify({ mfaToken, otp })
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json.error?.message || 'Verification failed. Please check the code.');
+  }
+
+  if (json.data?.accessToken) {
+    setAccessToken(json.data.accessToken);
+  }
+
+  return json.data;
+}
+
+export async function resendOtpApi(
+  mfaToken: string
+): Promise<{ mfaToken: string; expiresIn: number; message: string }> {
+  const res = await apiFetch('/api/v1/auth/resend-otp', {
+    method: 'POST',
+    body: JSON.stringify({ mfaToken })
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json.error?.message || 'Failed to resend verification code.');
   }
 
   return json.data;

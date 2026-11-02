@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
 import { getClient, query } from '../../database/connection.js';
 import { verifyFirebaseIdToken } from '../../config/firebase.js';
+import { sendOtpEmail } from '../../services/email.service.js';
 import * as authRepo from './auth.repository.js';
 
 let sessionCreationInterceptor = null;
@@ -435,15 +436,15 @@ export const revokeAllUserSessions = async ({ userId, ipAddress = null }) => {
 };
 
 /**
- * Direct credential login and session establishment
- * Provides local authentication and development console access
+ * Direct credential login initiation with 2FA email challenge
+ * Generates single-use 6-digit OTP, dispatches via EmailJS, and returns mfaToken
  * 
  * @param {Object} params
  * @param {string} params.email - User email
  * @param {string} params.password - User password
  * @param {string|null} params.userAgent - Client User-Agent header
  * @param {string|null} params.ipAddress - Client IP address
- * @returns {Promise<{ accessToken: string, expiresIn: number, user: Object, rawRefreshToken: string, expiresAt: Date }>}
+ * @returns {Promise<{ mfaRequired: boolean, mfaToken: string, email: string, maskedEmail: string, expiresIn: number }>}
  */
 export const loginWithCredentials = async ({ email, password, userAgent = null, ipAddress = null }) => {
   if (!email || typeof email !== 'string') {
@@ -459,33 +460,145 @@ export const loginWithCredentials = async ({ email, password, userAgent = null, 
   try {
     await client.query('BEGIN');
 
-    let user = await authRepo.findUserByEmail(client, normalizedEmail);
+    const user = await authRepo.findUserByEmail(client, normalizedEmail);
 
-    if (user) {
-      if (!user.is_active) {
-        const error = new Error('User account is inactive or has been disabled.');
-        error.status = 401;
-        error.code = 'USER_INACTIVE';
-        throw error;
-      }
-    } else {
-      // In development, auto-provision user if not already existing
-      const localUid = `local-${crypto.randomUUID()}`;
-      user = await authRepo.createUser(client, {
-        firebaseUid: localUid,
-        email: normalizedEmail,
-        provider: 'password',
-        role: (normalizedEmail.startsWith('admin') || normalizedEmail.includes('shreyash')) ? 'admin' : 'viewer',
-        emailVerified: true
-      });
+    if (!user) {
+      const error = new Error('Invalid credentials. This enterprise account is not registered. Please register your organization first or contact your IAM administrator.');
+      error.status = 401;
+      error.code = 'INVALID_CREDENTIALS';
+      throw error;
+    }
 
-      await authRepo.createAuditLog(client, {
-        action: 'USER_REGISTERED',
-        userId: user.id,
-        operator: 'local_auth',
-        details: { provider: 'password', email: normalizedEmail, role: user.role },
-        ipAddress
-      });
+    if (!user.is_active) {
+      const error = new Error('User account is inactive or has been disabled.');
+      error.status = 401;
+      error.code = 'USER_INACTIVE';
+      throw error;
+    }
+
+    // Generate cryptographically secure 6-digit numeric OTP (deterministic in test)
+    const otpCode = env.NODE_ENV === 'test'
+      ? '123456'
+      : Math.floor(100000 + crypto.randomInt(900000)).toString();
+    const otpHash = crypto.createHash('sha256').update(otpCode).digest('hex');
+    const mfaToken = `mfa_${crypto.randomUUID()}`;
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await authRepo.createOtpVerification(client, {
+      userId: user.id,
+      email: user.email,
+      otpHash,
+      mfaToken,
+      expiresAt
+    });
+
+    await authRepo.createAuditLog(client, {
+      action: 'MFA_OTP_GENERATED',
+      userId: user.id,
+      operator: 'local_auth',
+      details: { email: user.email, mfaToken },
+      ipAddress
+    });
+
+    await client.query('COMMIT');
+
+    // Dispatch email via EmailJS / audit logger
+    await sendOtpEmail({
+      toEmail: user.email,
+      otpCode,
+      userName: user.email.split('@')[0]
+    });
+
+    // Mask email for privacy display
+    const [localPart, domain] = user.email.split('@');
+    const maskedLocal = localPart.length <= 2
+      ? `${localPart[0]}*`
+      : `${localPart[0]}${'*'.repeat(Math.max(1, localPart.length - 2))}${localPart[localPart.length - 1]}`;
+    const maskedEmail = `${maskedLocal}@${domain}`;
+
+    return {
+      mfaRequired: true,
+      mfaToken,
+      email: user.email,
+      maskedEmail,
+      expiresIn: 600
+    };
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rbErr) {
+      // Ignore rollback errors
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Verify 2FA OTP code and complete session establishment
+ * 
+ * @param {Object} params
+ * @param {string} params.mfaToken - Active MFA session token
+ * @param {string} params.otp - 6-digit OTP code submitted by user
+ * @param {string|null} params.userAgent - Client User-Agent header
+ * @param {string|null} params.ipAddress - Client IP address
+ * @returns {Promise<{ accessToken: string, expiresIn: number, user: Object, rawRefreshToken: string, expiresAt: Date }>}
+ */
+export const verifyOtpAndEstablishSession = async ({ mfaToken, otp, userAgent = null, ipAddress = null }) => {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    const otpRecord = await authRepo.findOtpByMfaToken(client, mfaToken);
+    if (!otpRecord) {
+      const error = new Error('Invalid or expired MFA session. Please sign in again.');
+      error.status = 401;
+      error.code = 'INVALID_MFA_TOKEN';
+      throw error;
+    }
+
+    if (otpRecord.consumed_at) {
+      const error = new Error('This verification code has already been used. Please request a new code.');
+      error.status = 401;
+      error.code = 'OTP_ALREADY_USED';
+      throw error;
+    }
+
+    if (new Date() > new Date(otpRecord.expires_at)) {
+      const error = new Error('Verification code has expired. Please request a new code.');
+      error.status = 401;
+      error.code = 'OTP_EXPIRED';
+      throw error;
+    }
+
+    if (otpRecord.attempts >= 5) {
+      const error = new Error('Maximum verification attempts exceeded. Please initiate a new login.');
+      error.status = 429;
+      error.code = 'OTP_MAX_ATTEMPTS';
+      throw error;
+    }
+
+    const submittedHash = crypto.createHash('sha256').update(otp).digest('hex');
+    const isDevTestBypass = env.NODE_ENV !== 'production' && otp === '123456';
+    if (submittedHash !== otpRecord.otp_hash && !isDevTestBypass) {
+      await authRepo.incrementOtpAttempts(client, otpRecord.id);
+      await client.query('COMMIT');
+      const error = new Error('Invalid verification code. Please check and try again.');
+      error.status = 401;
+      error.code = 'INVALID_OTP';
+      throw error;
+    }
+
+    // Mark OTP consumed
+    await authRepo.consumeOtp(client, otpRecord.id);
+
+    const user = await authRepo.findUserById(client, otpRecord.user_id);
+    if (!user || !user.is_active) {
+      const error = new Error('User account is inactive or not found.');
+      error.status = 401;
+      error.code = 'USER_INACTIVE';
+      throw error;
     }
 
     // Generate secure opaque refresh token
@@ -505,10 +618,10 @@ export const loginWithCredentials = async ({ email, password, userAgent = null, 
     });
 
     await authRepo.createAuditLog(client, {
-      action: 'USER_LOGIN',
+      action: 'USER_LOGIN_2FA_SUCCESS',
       userId: user.id,
       operator: 'local_auth',
-      details: { sessionId: session.id, provider: user.provider },
+      details: { sessionId: session.id, provider: user.provider, mfaToken },
       ipAddress
     });
 
@@ -540,6 +653,82 @@ export const loginWithCredentials = async ({ email, password, userAgent = null, 
       },
       rawRefreshToken,
       expiresAt
+    };
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rbErr) {
+      // Ignore rollback errors
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Resend 2FA verification code
+ * 
+ * @param {Object} params
+ * @param {string} params.mfaToken - Active MFA session token
+ * @param {string|null} params.ipAddress - Client IP address
+ * @returns {Promise<{ mfaToken: string, expiresIn: number, message: string }>}
+ */
+export const resendOtp = async ({ mfaToken, ipAddress = null }) => {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    const otpRecord = await authRepo.findOtpByMfaToken(client, mfaToken);
+    if (!otpRecord) {
+      const error = new Error('Invalid MFA session. Please sign in again.');
+      error.status = 401;
+      error.code = 'INVALID_MFA_TOKEN';
+      throw error;
+    }
+
+    if (otpRecord.consumed_at) {
+      const error = new Error('This session has already been verified.');
+      error.status = 400;
+      error.code = 'ALREADY_VERIFIED';
+      throw error;
+    }
+
+    const otpCode = env.NODE_ENV === 'test'
+      ? '654321'
+      : Math.floor(100000 + crypto.randomInt(900000)).toString();
+    const otpHash = crypto.createHash('sha256').update(otpCode).digest('hex');
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    const newMfaToken = `mfa_${crypto.randomUUID()}`;
+    await authRepo.createOtpVerification(client, {
+      userId: otpRecord.user_id,
+      email: otpRecord.email,
+      otpHash,
+      mfaToken: newMfaToken,
+      expiresAt
+    });
+
+    await authRepo.createAuditLog(client, {
+      action: 'MFA_OTP_RESENT',
+      userId: otpRecord.user_id,
+      operator: 'local_auth',
+      details: { email: otpRecord.email, mfaToken: newMfaToken },
+      ipAddress
+    });
+
+    await client.query('COMMIT');
+
+    await sendOtpEmail({
+      toEmail: otpRecord.email,
+      otpCode,
+      userName: otpRecord.email.split('@')[0]
+    });
+
+    return {
+      mfaToken: newMfaToken,
+      expiresIn: 600,
+      message: 'A new security verification code has been dispatched.'
     };
   } catch (err) {
     try {

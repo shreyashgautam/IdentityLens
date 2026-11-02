@@ -464,8 +464,9 @@ This document logs all key architectural, technical, library, and design decisio
 - **Decision**:
   1. **Dynamic Localhost CORS & CSRF Compatibility**:
      - `corsMiddleware` and `verifyCsrfOrigin` allow all development loopback origins (`http://localhost:*`) when `NODE_ENV === 'development'`, preventing `403 FORBIDDEN_ORIGIN` if Vite binds to alternative ports (e.g. 5174, 5175).
-  2. **Flexible Email & Username Validation**:
+  2. **Flexible Email & Username Validation with Strict Registered-Only Enforcement**:
      - `loginBodySchema` and `registerBodySchema` accept standard corporate emails as well as usernames (e.g. `shreyashgautam2007`), transforming non-domain strings automatically into lowercased `@identitylens.io` entities.
+     - Login strictly enforces that only accounts already registered in PostgreSQL (`users` table) can authenticate. Any attempt to log in with an unregistered email or non-existent entity is explicitly blocked with `401 INVALID_CREDENTIALS` ("Invalid credentials. This enterprise account is not registered. Please register your organization first or contact your IAM administrator."). Auto-provisioning of arbitrary emails during credential login has been completely eliminated.
   3. **Multi-Tenant Organization Registration (`POST /api/v1/auth/register`)**:
      - Provisions a new organization and administrator account in PostgreSQL with `role: 'admin'`, durable device session, single-use refresh token, and signed access JWT.
   4. **Client-Side Refresh Mutex (Singleton Promise) & SessionStorage Persistence**:
@@ -491,6 +492,33 @@ This document logs all key architectural, technical, library, and design decisio
 - **Why It Is Needed**:
   - Matches the user's provided visual screenshot and the approved Google Stitch MCP design screen pixel-perfectly without styling breakage.
 - **Accepted Trade-Off**: Dedicated CSS classes in `Dashboard.css` increase stylesheet size by ~5KB gzipped, but ensure zero runtime layout shifts and strict theme isolation.
+
+---
+
+### Decision 27: Multi-Factor Authentication (2FA) with Email OTP Dispatch via EmailJS and Single-Use Challenge Tokens
+
+- **Decision**:
+  1. **Strict 2-Step Login Flow (`Login -> OTP Challenge -> Dashboard`)**:
+     - `POST /api/v1/auth/login` verifies user registration (`users` table) and active status.
+     - Upon valid credentials, backend generates a cryptographically secure 6-digit numeric OTP and a single-use `mfaToken` stored in PostgreSQL table `otp_verifications` with a SHA-256 hash and 10-minute expiry.
+     - Backend immediately dispatches an email via EmailJS (using `sendOtpEmail`) and logs the OTP securely to the developer console.
+     - Returns `200 OK` with `{ mfaRequired: true, mfaToken, maskedEmail }` without issuing an access JWT or session cookie yet.
+  2. **Atomic Verification & Session Issuance (`POST /api/v1/auth/verify-otp`)**:
+     - Client submits `{ mfaToken, otp }`.
+     - Backend verifies timing-safe hash matching, ensures code is not expired (`expires_at > NOW()`), not already consumed (`consumed_at IS NULL`), and rate-limited (< 5 attempts).
+     - Marks OTP as consumed (`consumed_at = NOW()`), creates durable user session in `user_sessions`, and issues the signed access JWT and HttpOnly `refresh_token` cookie.
+  3. **Strict Registration Boundary**:
+     - Only registered enterprise emails are permitted to initiate login:
+       - `shreyashgautam2007@gmail.com` (Admin)
+       - `elena.vance@enterprise-sec.io` (Security Principal)
+       - Arbitrary unregistered emails are rejected with `401 INVALID_CREDENTIALS`.
+  4. **EmailJS Integration**:
+     - Configured in `backend/src/services/email.service.js` with direct REST dispatch to `https://api.emailjs.com/api/v1.0/email/send`.
+     - Client helper utility provided in `frontend/src/services/emailService.ts`.
+- **Why It Is Needed**:
+  - Enforces Zero Trust 2FA security across corporate identities, protecting production and governance audit telemetry.
+- **Accepted Trade-Off**: Requires a two-step handshake before session establishment; mitigated with auto-focusing 6-digit input boxes and 30s resend cooldown.
+
 
 
 
