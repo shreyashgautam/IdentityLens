@@ -1175,6 +1175,7 @@ describe('Milestone 6 — Phase 1 Stage B: Firebase Authentication & Token Excha
 
   // 21. POST /api/v1/auth/register registers organization and admin user
   test('POST /api/v1/auth/register creates organization and returns auth context with cookie', async () => {
+    const testUsername = `test-org-admin-${Date.now()}`;
     const regRes = await fetch(`${baseUrl}/api/v1/auth/register`, {
       method: 'POST',
       headers: {
@@ -1183,7 +1184,7 @@ describe('Milestone 6 — Phase 1 Stage B: Firebase Authentication & Token Excha
       },
       body: JSON.stringify({
         organization: 'Acme Security Corp',
-        email: 'shreyashgautam2007',
+        email: testUsername,
         password: 'Password123!'
       })
     });
@@ -1191,7 +1192,7 @@ describe('Milestone 6 — Phase 1 Stage B: Firebase Authentication & Token Excha
     assert.equal(regRes.status, 201);
     const regBody = await regRes.json();
     assert.ok(regBody.data.accessToken);
-    assert.equal(regBody.data.user.email, 'shreyashgautam2007@identitylens.io');
+    assert.equal(regBody.data.user.email, `${testUsername}@identitylens.io`);
     assert.equal(regBody.data.user.role, 'admin');
     assert.equal(regBody.data.user.organization, 'Acme Security Corp');
 

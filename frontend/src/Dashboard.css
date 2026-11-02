@@ -2376,3 +2376,658 @@ html, body {
   background-color: rgba(220, 38, 38, 0.08);
 }
 
+/* ==========================================================================
+   Stitch Enterprise Authentication & Onboarding (Split-Screen Precision)
+   ========================================================================== */
+
+.stitch-split-auth-container {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: #F8F9FA;
+  color: #0F172A;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (min-width: 1024px) {
+  .stitch-split-auth-container {
+    flex-direction: row;
+  }
+}
+
+.stitch-auth-left-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px 20px;
+  background-color: #FFFFFF;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+
+@media (min-width: 640px) {
+  .stitch-auth-left-panel {
+    padding: 36px 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .stitch-auth-left-panel {
+    width: 50%;
+    padding: 48px 56px;
+    border-right: 1px solid #E2E8F0;
+  }
+}
+
+.stitch-auth-right-panel {
+  width: 100%;
+  background-color: #0B1120;
+  color: #F8FAFC;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 32px 24px;
+  min-height: 100vh;
+  position: relative;
+  overflow-y: auto;
+}
+
+@media (min-width: 640px) {
+  .stitch-auth-right-panel {
+    padding: 40px 36px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .stitch-auth-right-panel {
+    width: 50%;
+    padding: 48px 56px;
+  }
+}
+
+.stitch-right-bg-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  pointer-events: none;
+  background-image: radial-gradient(#FFFFFF 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Brand Bar */
+.stitch-auth-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 24px;
+}
+
+.stitch-brand-cluster {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stitch-brand-badge-id {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background-color: #0F172A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+
+.stitch-brand-title {
+  font-weight: 700;
+  font-size: 18px;
+  color: #0F172A;
+  letter-spacing: -0.02em;
+}
+
+.stitch-brand-subtitle {
+  font-size: 12px;
+  color: #64748B;
+  margin: 0;
+}
+
+/* Center Box */
+.stitch-auth-center-box {
+  max-width: 440px;
+  width: 100%;
+  margin: auto;
+  padding: 24px 0;
+}
+
+.stitch-auth-heading-group {
+  margin-bottom: 28px;
+}
+
+.stitch-auth-main-title {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0F172A;
+  margin: 0;
+}
+
+@media (min-width: 640px) {
+  .stitch-auth-main-title {
+    font-size: 28px;
+  }
+}
+
+.stitch-auth-main-subtitle {
+  font-size: 13.5px;
+  color: #64748B;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* SSO Buttons */
+.stitch-sso-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.stitch-sso-btn-primary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #CBD5E1;
+  background-color: #FFFFFF;
+  color: #0F172A;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+}
+
+.stitch-sso-btn-primary:hover {
+  background-color: #F8FAFC;
+  border-color: #94A3B8;
+}
+
+.stitch-sso-grid-secondary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.stitch-sso-btn-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  background-color: #FFFFFF;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stitch-sso-btn-secondary:hover {
+  background-color: #F8FAFC;
+  border-color: #CBD5E1;
+}
+
+/* Divider */
+.stitch-auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.stitch-divider-line {
+  flex-grow: 1;
+  border-top: 1px solid #E2E8F0;
+}
+
+.stitch-divider-label {
+  margin: 0 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94A3B8;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Alert */
+.stitch-auth-error-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background-color: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 8px;
+  color: #991B1B;
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin-bottom: 16px;
+}
+
+.stitch-error-text {
+  flex: 1;
+}
+
+.stitch-error-close {
+  background: none;
+  border: none;
+  color: #991B1B;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Form Fields */
+.stitch-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stitch-form-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.stitch-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0F172A;
+  margin-bottom: 6px;
+}
+
+.stitch-field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.stitch-field-link {
+  font-size: 12px;
+  color: #475569;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.stitch-field-link:hover {
+  color: #0F172A;
+}
+
+.stitch-input-relative {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.stitch-field-input {
+  width: 100%;
+  padding: 10px 14px;
+  background-color: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: #0F172A;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.stitch-field-input:focus {
+  border-color: #0F172A;
+  box-shadow: 0 0 0 1px #0F172A;
+}
+
+.stitch-field-input::placeholder {
+  color: #94A3B8;
+}
+
+.stitch-scim-badge {
+  position: absolute;
+  right: 10px;
+  font-size: 11px;
+  color: #059669;
+  background-color: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.stitch-input-toggle-btn {
+  position: absolute;
+  right: 12px;
+  font-size: 12px;
+  color: #64748B;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-weight: 500;
+}
+
+.stitch-input-toggle-btn:hover {
+  color: #0F172A;
+}
+
+/* MFA Hardware Key Box */
+.stitch-mfa-box {
+  padding: 12px;
+  background-color: #F8F9FA;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.stitch-checkbox {
+  margin-top: 2px;
+  accent-color: #0F172A;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.stitch-mfa-text {
+  font-size: 12px;
+}
+
+.stitch-mfa-title {
+  font-weight: 600;
+  color: #0F172A;
+  cursor: pointer;
+  display: block;
+}
+
+.stitch-mfa-desc {
+  font-size: 11px;
+  color: #64748B;
+  margin: 2px 0 0 0;
+  line-height: 1.4;
+}
+
+/* Submit Button */
+.stitch-btn-submit {
+  width: 100%;
+  margin-top: 6px;
+  padding: 11px 16px;
+  background-color: #0F172A;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.15s ease;
+}
+
+.stitch-btn-submit:hover:not(:disabled) {
+  background-color: #1E293B;
+}
+
+.stitch-btn-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Links & Compliance */
+.stitch-switch-register-row {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: #64748B;
+}
+
+.stitch-register-link-btn {
+  font-weight: 600;
+  color: #0F172A;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.stitch-register-link-btn:hover {
+  color: #3157D5;
+}
+
+.stitch-compliance-bar {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid #F1F5F9;
+  text-align: center;
+  font-size: 11px;
+  color: #64748B;
+  letter-spacing: 0.02em;
+}
+
+/* Bottom Footer */
+.stitch-auth-bottom-footer {
+  padding-top: 24px;
+  border-top: 1px solid #F1F5F9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #64748B;
+}
+
+@media (min-width: 640px) {
+  .stitch-auth-bottom-footer {
+    flex-direction: row;
+  }
+}
+
+.stitch-footer-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stitch-footer-links a {
+  color: #64748B;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.stitch-footer-links a:hover {
+  color: #0F172A;
+}
+
+/* Right Panel Elements */
+.stitch-right-header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.8);
+}
+
+.stitch-cloud-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #94A3B8;
+}
+
+.stitch-status-dot-neutral {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #94A3B8;
+}
+
+.stitch-version-tag {
+  font-size: 12px;
+  color: #64748B;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.stitch-showcase-box {
+  position: relative;
+  z-index: 10;
+  max-width: 520px;
+  width: 100%;
+  margin: auto;
+  padding: 24px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.stitch-showcase-kicker {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94A3B8;
+}
+
+.stitch-showcase-heading {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #FFFFFF;
+  margin-top: 6px;
+  line-height: 1.25;
+}
+
+@media (min-width: 640px) {
+  .stitch-showcase-heading {
+    font-size: 26px;
+  }
+}
+
+.stitch-showcase-desc {
+  font-size: 13.5px;
+  color: #94A3B8;
+  margin-top: 8px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.stitch-showcase-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.stitch-metric-tile {
+  padding: 16px;
+  border-radius: 8px;
+  background-color: rgba(15, 23, 42, 0.6);
+  border: 1px solid #1E293B;
+}
+
+.stitch-metric-label {
+  font-size: 11px;
+  color: #94A3B8;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.stitch-metric-val {
+  font-size: 22px;
+  font-weight: 600;
+  color: #FFFFFF;
+  margin-top: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.stitch-metric-sub {
+  font-size: 11px;
+  color: #94A3B8;
+  margin-top: 4px;
+}
+
+.stitch-posture-card {
+  padding: 16px;
+  border-radius: 8px;
+  background-color: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stitch-posture-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #94A3B8;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.stitch-posture-badge {
+  color: #CBD5E1;
+}
+
+.stitch-posture-desc {
+  font-size: 12px;
+  color: #CBD5E1;
+  line-height: 1.5;
+}
+
+.stitch-showcase-footer-badges {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #64748B;
+  font-family: 'JetBrains Mono', monospace;
+  padding-top: 8px;
+}
+
+.stitch-right-bottom-footer {
+  position: relative;
+  z-index: 10;
+  padding-top: 24px;
+  border-top: 1px solid rgba(30, 41, 59, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #64748B;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+
